@@ -41,6 +41,8 @@ namespace WordTrainingAssistant
                 return;
             }
             
+            PrintNumberOfWords(words);
+
             List<KeyValuePair<string, string>> filteredWords = GetRandomSetOfWords(count, words);
             List<KeyValuePair<string, string>> errors = CheckAnswer(filteredWords);
             PrintStatistics(filteredWords, errors);
@@ -57,6 +59,12 @@ namespace WordTrainingAssistant
 
                 CheckAnswer(errors);
             }
+        }
+
+        private static void PrintNumberOfWords(List<KeyValuePair<string, string>> words)
+        {
+            PrintDefaultMsg($"Number of imported words: {words.Count}");
+            Console.WriteLine();
         }
 
         private static void PrintStatistics(List<KeyValuePair<string, string>> filteredWords, List<KeyValuePair<string, string>> errors)
