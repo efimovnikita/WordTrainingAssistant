@@ -43,7 +43,10 @@ namespace WordTrainingAssistant
             
             PrintNumberOfWords(words);
 
-            List<KeyValuePair<string, string>> filteredWords = GetRandomSetOfWords(count, words);
+            List<KeyValuePair<string, string>> filteredWords = GetRandomSetOfWords(count > words.Count
+                    ? words.Count
+                    : count,
+                words);
             List<KeyValuePair<string, string>> errors = CheckAnswer(filteredWords);
             PrintStatistics(filteredWords, errors);
 
