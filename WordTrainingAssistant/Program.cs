@@ -10,7 +10,7 @@ using AngleSharp.Dom;
 
 namespace WordTrainingAssistant
 {
-    internal class Program
+    internal static class Program
     {
         private static async Task<int> Main(string[] args)
         {
@@ -40,9 +40,37 @@ namespace WordTrainingAssistant
                 PrintDefaultMsg("The list of words is empty.");
                 return;
             }
-
-            Random random = new(DateTime.Now.ToString(CultureInfo.InvariantCulture).GetHashCode());
             
+            List<KeyValuePair<string, string>> filteredWords = GetRandomSetOfWords(count, words);
+            List<KeyValuePair<string, string>> errors = CheckAnswer(filteredWords);
+            PrintStatistics(filteredWords, errors);
+
+            if (errors.Any())
+            {
+                PrintDefaultMsg("Repeat the words in which mistakes were made? (y/n)");
+                string answer = Console.ReadLine();
+                Console.WriteLine();
+                if (answer != "y")
+                {
+                    return;
+                }
+
+                CheckAnswer(errors);
+            }
+        }
+
+        private static void PrintStatistics(List<KeyValuePair<string, string>> filteredWords, List<KeyValuePair<string, string>> errors)
+        {
+            PrintDefaultMsg($"Correct answers: {filteredWords.Count - errors.Count}");
+            PrintDefaultMsg($"Wrong answers: {errors.Count}");
+            Console.WriteLine();
+        }
+
+        private static List<KeyValuePair<string, string>> GetRandomSetOfWords(int count, 
+            List<KeyValuePair<string, string>> words)
+        {
+            Random random = new(DateTime.Now.ToString(CultureInfo.InvariantCulture).GetHashCode());
+
             List<KeyValuePair<string, string>> filteredWords = new();
             for (int i = 0; i < count; i++)
             {
@@ -58,28 +86,31 @@ namespace WordTrainingAssistant
                 filteredWords.Add(valuePair);
             }
 
-            List<bool> errors = new();
+            return filteredWords;
+        }
+
+        private static List<KeyValuePair<string, string>> CheckAnswer(List<KeyValuePair<string, string>> filteredWords)
+        {
+            List<KeyValuePair<string, string>> errors = new();
             foreach (KeyValuePair<string, string> pair in filteredWords)
             {
                 PrintDefaultMsg(pair.Value);
                 string line = Console.ReadLine();
                 if (line == null || line.Equals(pair.Key, StringComparison.InvariantCultureIgnoreCase))
                 {
-                    errors.Add(true);
                     PrintSuccessMsg("SUCCESS");
                     Console.WriteLine("");
                 }
                 else
                 {
-                    errors.Add(false);
+                    errors.Add(pair);
                     PrintErrorMsg("FAIL");
                     PrintErrorMsg($"Right answer is: {pair.Key}");
                     Console.WriteLine("");
                 }
             }
 
-            PrintDefaultMsg($"Correct answers: {errors.Where(b => b).ToList().Count}");
-            PrintDefaultMsg($"Wrong answers: {errors.Where(b => b == false).ToList().Count}");
+            return errors;
         }
 
         private static async Task<List<KeyValuePair<string, string>>> ParseFiles(string dir)
