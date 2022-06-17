@@ -35,6 +35,12 @@ namespace WordTrainingAssistant
         {
             List<KeyValuePair<string, string>> words = await ParseFiles(dir);
 
+            if (words.Any() == false)
+            {
+                PrintDefaultMsg("The list of words is empty.");
+                return;
+            }
+
             Random random = new(DateTime.Now.ToString(CultureInfo.InvariantCulture).GetHashCode());
             
             List<KeyValuePair<string, string>> filteredWords = new();
@@ -57,7 +63,7 @@ namespace WordTrainingAssistant
             {
                 PrintDefaultMsg(pair.Value);
                 string line = Console.ReadLine();
-                if (line == null || line.Equals(pair.Key))
+                if (line == null || line.Equals(pair.Key, StringComparison.InvariantCultureIgnoreCase))
                 {
                     errors.Add(true);
                     PrintSuccessMsg("SUCCESS");
@@ -98,7 +104,7 @@ namespace WordTrainingAssistant
                     {
                         string originalWord =
                             liElement.QuerySelectorAll("div.original > span.text").FirstOrDefault()?.TextContent
-                                .Trim() ?? "";
+                                .Trim().Replace('’', '\'') ?? "";
                         string translation =
                             liElement.QuerySelectorAll("div.translation").FirstOrDefault()?.TextContent.Trim() ??
                             "";
