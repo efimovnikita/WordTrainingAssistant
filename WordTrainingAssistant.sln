@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WordTrainingAssistant", "WordTrainingAssistant\WordTrainingAssistant.csproj", "{35632102-6E21-4E0D-84F7-D89FE7C9481D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WordTrainingAssistant.Shared", "WordTrainingAssistant.Shared\WordTrainingAssistant.Shared.csproj", "{AA97A66D-9C56-48E3-B916-6535EE2A9011}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{35632102-6E21-4E0D-84F7-D89FE7C9481D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{35632102-6E21-4E0D-84F7-D89FE7C9481D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{35632102-6E21-4E0D-84F7-D89FE7C9481D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AA97A66D-9C56-48E3-B916-6535EE2A9011}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AA97A66D-9C56-48E3-B916-6535EE2A9011}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AA97A66D-9C56-48E3-B916-6535EE2A9011}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AA97A66D-9C56-48E3-B916-6535EE2A9011}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

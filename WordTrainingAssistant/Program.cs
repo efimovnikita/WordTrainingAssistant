@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.CommandLine;
-using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using AngleSharp;
-using AngleSharp.Dom;
+using WordTrainingAssistant.Shared;
 
 namespace WordTrainingAssistant
 {
@@ -33,7 +30,7 @@ namespace WordTrainingAssistant
 
         private static async Task Run(string dir, int count)
         {
-            List<KeyValuePair<string, string>> words = await ParseFiles(dir);
+            List<KeyValuePair<string, string>> words = await Core.ParseFiles(dir);
 
             if (words.Any() == false)
             {
@@ -43,11 +40,11 @@ namespace WordTrainingAssistant
             
             PrintNumberOfWords(words);
 
-            List<KeyValuePair<string, string>> filteredWords = GetRandomSetOfWords(count > words.Count
+            List<KeyValuePair<string, string>> filteredWords = Core.GetRandomSetOfWords(count > words.Count
                     ? words.Count
                     : count,
                 words);
-            List<KeyValuePair<string, string>> errors = CheckAnswer(filteredWords);
+            List<KeyValuePair<string, string>> errors = CheckAnswerAndPrintResult(filteredWords);
             PrintStatistics(filteredWords, errors);
 
             if (errors.Any())
@@ -60,7 +57,7 @@ namespace WordTrainingAssistant
                     return;
                 }
 
-                CheckAnswer(errors);
+                CheckAnswerAndPrintResult(errors);
             }
         }
 
@@ -77,37 +74,14 @@ namespace WordTrainingAssistant
             Console.WriteLine();
         }
 
-        private static List<KeyValuePair<string, string>> GetRandomSetOfWords(int count, 
-            List<KeyValuePair<string, string>> words)
-        {
-            Random random = new(DateTime.Now.ToString(CultureInfo.InvariantCulture).GetHashCode());
-
-            List<KeyValuePair<string, string>> filteredWords = new();
-            for (int i = 0; i < count; i++)
-            {
-                string key;
-                KeyValuePair<string, string> valuePair;
-                do
-                {
-                    int index = random.Next(0, words.Count);
-                    valuePair = words[index];
-                    key = valuePair.Key;
-                } while (filteredWords.Count(pair => pair.Key.Equals(key)) is not 0);
-
-                filteredWords.Add(valuePair);
-            }
-
-            return filteredWords;
-        }
-
-        private static List<KeyValuePair<string, string>> CheckAnswer(List<KeyValuePair<string, string>> filteredWords)
+        private static List<KeyValuePair<string, string>> CheckAnswerAndPrintResult(List<KeyValuePair<string, string>> filteredWords)
         {
             List<KeyValuePair<string, string>> errors = new();
             foreach (KeyValuePair<string, string> pair in filteredWords)
             {
                 PrintDefaultMsg(pair.Value);
                 string line = Console.ReadLine();
-                if (line == null || line.Equals(pair.Key, StringComparison.InvariantCultureIgnoreCase))
+                if (Core.CheckAnswer(line, pair.Key))
                 {
                     PrintSuccessMsg("SUCCESS");
                     Console.WriteLine("");
@@ -122,42 +96,6 @@ namespace WordTrainingAssistant
             }
 
             return errors;
-        }
-
-        private static async Task<List<KeyValuePair<string, string>>> ParseFiles(string dir)
-        {
-            IConfiguration config = Configuration.Default;
-            IBrowsingContext context = BrowsingContext.New(config);
-            string[] files = Directory.GetFiles(dir);
-
-            List<KeyValuePair<string, string>> words = new();
-            foreach (string file in files)
-            {
-                string source = await File.ReadAllTextAsync(file);
-                IDocument document = await context.OpenAsync(req => req.Content(source));
-
-                IHtmlCollection<IElement> wordSets = document.QuerySelectorAll("div.wordset");
-
-                foreach (IElement wordSet in wordSets)
-                {
-                    IHtmlCollection<IElement> liElements = wordSet.QuerySelectorAll("li");
-
-                    foreach (IElement liElement in liElements)
-                    {
-                        string originalWord =
-                            liElement.QuerySelectorAll("div.original > span.text").FirstOrDefault()?.TextContent
-                                .Trim().Replace('’', '\'') ?? "";
-                        string translation =
-                            liElement.QuerySelectorAll("div.translation").FirstOrDefault()?.TextContent.Trim() ??
-                            "";
-
-                        if (new[] {originalWord, translation}.All(s => String.IsNullOrWhiteSpace(s) == false))
-                            words.Add(new KeyValuePair<string, string>(originalWord, translation));
-                    }
-                }
-            }
-
-            return words;
         }
 
         private static void PrintDefaultMsg(string msg)
