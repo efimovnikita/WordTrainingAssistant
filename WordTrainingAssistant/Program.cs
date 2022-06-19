@@ -126,10 +126,7 @@ namespace WordTrainingAssistant
                 if (Core.CheckAnswer(line, word.Name))
                 {
                     PrintSuccessMsg($"SUCCESS - {word.Name}");
-                    if (synonyms is not null && synonyms.Count > 0)
-                    {
-                        PrintSynonyms(word);
-                    }
+                    PrintSynonyms(word);
                     Console.WriteLine("");
                 }
                 else
@@ -137,10 +134,7 @@ namespace WordTrainingAssistant
                     errors.Add(word);
                     PrintErrorMsg("FAIL");
                     PrintErrorMsg($"Right answer is: {word.Name}");
-                    if (synonyms is not null && synonyms.Count > 0)
-                    {
-                        PrintSynonyms(word);
-                    }
+                    PrintSynonyms(word);
 
                     Console.WriteLine("");
                 }
@@ -151,6 +145,11 @@ namespace WordTrainingAssistant
 
         private static void PrintSynonyms(Word word)
         {
+            if (word.Synonyms.Any() == false)
+            {
+                return;
+            }
+
             StringBuilder sb = new();
             sb.Append("Synonyms of this word: ");
             foreach (Word synonym in word.Synonyms.Where(w => w.Name.Equals(word.Name) == false))
