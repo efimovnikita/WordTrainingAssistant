@@ -97,7 +97,13 @@ namespace WordTrainingAssistant
             }
 
             List<SkyEngClass> list = skyEngClasses.Skip(1).ToList();
-            List<Word> similarWords = list.Select(cl => new Word() { Name = cl.text, Translation = word.Translation })
+            List<Word> similarWords = list.Select(cl => new Word
+                {
+                    Name = cl.text,
+                    Translation = cl.meanings[0]
+                                      ?.translation?.text ??
+                                  word.Translation
+                })
                 .ToList();
             word.Synonyms = similarWords;
         }
@@ -154,7 +160,7 @@ namespace WordTrainingAssistant
             sb.Append("Synonyms of this word: ");
             foreach (Word synonym in word.Synonyms.Where(w => w.Name.Equals(word.Name) == false))
             {
-                sb.Append($"[{synonym.Name}], ");
+                sb.Append($"[{synonym.Name} - {synonym.Translation}], ");
             }
 
             PrintAdditionalInfo(sb.ToString().Substring(0, sb.ToString().Length - 2));
