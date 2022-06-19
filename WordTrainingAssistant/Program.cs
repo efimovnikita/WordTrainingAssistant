@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using WordTrainingAssistant.Models;
 using WordTrainingAssistant.Shared;
+using WordTrainingAssistant.Shared.Models;
 
 namespace WordTrainingAssistant
 {
@@ -127,9 +128,8 @@ namespace WordTrainingAssistant
             foreach (Word word in filteredObjects)
             {
                 PrintDefaultMsg(word.Translation);
-                string line = Console.ReadLine();
-                List<Word> synonyms = word.Synonyms;
-                if (Core.CheckAnswer(line, word.Name))
+                string userInput = Console.ReadLine();
+                if (Core.CheckAnswer(userInput, word))
                 {
                     PrintSuccessMsg($"SUCCESS");
                     PrintSynonyms(word);

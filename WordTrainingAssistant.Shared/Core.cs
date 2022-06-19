@@ -7,6 +7,7 @@ using System.Net;
 using System.Threading.Tasks;
 using AngleSharp;
 using AngleSharp.Dom;
+using WordTrainingAssistant.Shared.Models;
 
 namespace WordTrainingAssistant.Shared
 {
@@ -62,9 +63,22 @@ namespace WordTrainingAssistant.Shared
             return filteredWords;
         }
 
-        public static bool CheckAnswer(string line, string value)
+        public static bool CheckAnswer(string userInput, Word word)
         {
-            return line == null || line.Equals(value, StringComparison.InvariantCultureIgnoreCase);
+            bool equals = userInput == null || userInput.Equals(word.Name, StringComparison.InvariantCultureIgnoreCase);
+
+            if (equals)
+            {
+                return true;
+            }
+
+            if (word.Synonyms.Count == 0)
+            {
+                return false;
+            }
+
+            return word.Synonyms.Where(synonym => synonym.Name.Equals(userInput, StringComparison.InvariantCultureIgnoreCase))
+                .ToList().Any();
         }
 
         public static async Task<List<KeyValuePair<string, string>>> ParseFiles(string dir)

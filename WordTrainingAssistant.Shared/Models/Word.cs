@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace WordTrainingAssistant.Models
+namespace WordTrainingAssistant.Shared.Models
 {
     public class Word
     {
