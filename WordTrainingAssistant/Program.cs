@@ -2,7 +2,11 @@
 using System.Collections.Generic;
 using System.CommandLine;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using WordTrainingAssistant.Models;
 using WordTrainingAssistant.Shared;
 
 namespace WordTrainingAssistant
@@ -39,12 +43,18 @@ namespace WordTrainingAssistant
             }
             
             PrintNumberOfWords(words);
-
-            List<KeyValuePair<string, string>> filteredWords = Core.GetRandomSetOfWords(count > words.Count
+            
+            List<KeyValuePair<string, string>> randomSetOfWords = Core.GetRandomSetOfWords(count > words.Count
                     ? words.Count
                     : count,
                 words);
-            List<KeyValuePair<string, string>> errors = CheckAnswerAndPrintResult(filteredWords);
+
+            List<Word> filteredWords = randomSetOfWords
+                .Select(pair => new Word { Name = pair.Key, Translation = pair.Value }).ToList();
+
+            await EnrichWithSynonyms(filteredWords);
+
+            List<Word> errors = CheckAnswerAndPrintResult2(filteredWords);
             PrintStatistics(filteredWords, errors);
 
             if (errors.Any())
@@ -57,8 +67,104 @@ namespace WordTrainingAssistant
                     return;
                 }
 
-                CheckAnswerAndPrintResult(errors);
+                CheckAnswerAndPrintResult2(errors);
             }
+        }
+
+        private static async Task EnrichWithSynonyms(List<Word> filteredWords)
+        {
+            if (Core.CheckForInternetConnection())
+            {
+                HttpClient client = new();
+                foreach (Word word in filteredWords)
+                {
+                    HttpResponseMessage response = await client
+                        .GetAsync($"https://dictionary.skyeng.ru/api/public/v1/words/search?search={word.Translation}");
+
+                    string stringAsync = await response.Content.ReadAsStringAsync();
+                    SkyEngClass[] skyEngClasses = JsonConvert.DeserializeObject<SkyEngClass[]>(stringAsync);
+                    GetOriginalTranscriptions(skyEngClasses, word);
+                    GetAnotherWords(skyEngClasses, word);
+                }
+            }
+        }
+
+        private static void GetAnotherWords(SkyEngClass[] skyEngClasses, Word word)
+        {
+            if (skyEngClasses == null)
+            {
+                return;
+            }
+
+            List<SkyEngClass> list = skyEngClasses.Skip(1).ToList();
+            List<Word> similarWords = list.Select(cl => new Word() { Name = cl.text, Translation = word.Translation })
+                .ToList();
+            word.Synonyms = similarWords;
+        }
+
+        private static void GetOriginalTranscriptions(SkyEngClass[] skyEngClasses, Word filteredObject)
+        {
+            SkyEngClass skyEngClass = skyEngClasses?.FirstOrDefault(cl => cl.text.Equals(filteredObject.Name));
+            Meaning meaning = skyEngClass?.meanings[0];
+            if (meaning == null)
+            {
+                return;
+            }
+
+            string transcription = meaning.transcription;
+            filteredObject.Transcription = $"[{transcription}]";
+        }
+
+        private static List<Word> CheckAnswerAndPrintResult2(List<Word> filteredObjects)
+        {
+            List<Word> errors = new();
+            foreach (Word word in filteredObjects)
+            {
+                PrintDefaultMsg(word.Translation);
+                string line = Console.ReadLine();
+                List<Word> synonyms = word.Synonyms;
+                if (Core.CheckAnswer(line, word.Name))
+                {
+                    PrintSuccessMsg($"SUCCESS - {word.Name}");
+                    if (synonyms is not null && synonyms.Count > 0)
+                    {
+                        PrintSynonyms(word);
+                    }
+                    Console.WriteLine("");
+                }
+                else
+                {
+                    errors.Add(word);
+                    PrintErrorMsg("FAIL");
+                    PrintErrorMsg($"Right answer is: {word.Name}");
+                    if (synonyms is not null && synonyms.Count > 0)
+                    {
+                        PrintSynonyms(word);
+                    }
+
+                    Console.WriteLine("");
+                }
+            }
+
+            return errors;
+        }
+
+        private static void PrintSynonyms(Word word)
+        {
+            StringBuilder sb = new();
+            sb.Append("Synonyms of this word: ");
+            foreach (Word synonym in word.Synonyms.Where(w => w.Name.Equals(word.Name) == false))
+            {
+                sb.Append($"[{synonym.Name}], ");
+            }
+
+            PrintAdditionalInfo(sb.ToString().Substring(0, sb.ToString().Length - 2));
+        }
+
+        private static void PrintAdditionalInfo(string message)
+        {
+            Console.ForegroundColor = ConsoleColor.Gray;
+            Console.WriteLine($"{message}");
         }
 
         private static void PrintNumberOfWords(List<KeyValuePair<string, string>> words)
@@ -67,37 +173,13 @@ namespace WordTrainingAssistant
             Console.WriteLine();
         }
 
-        private static void PrintStatistics(List<KeyValuePair<string, string>> filteredWords, List<KeyValuePair<string, string>> errors)
+        private static void PrintStatistics(List<Word> filteredWords, List<Word> errors)
         {
             PrintDefaultMsg($"Correct answers: {filteredWords.Count - errors.Count}");
             PrintDefaultMsg($"Wrong answers: {errors.Count}");
             Console.WriteLine();
         }
-
-        private static List<KeyValuePair<string, string>> CheckAnswerAndPrintResult(List<KeyValuePair<string, string>> filteredWords)
-        {
-            List<KeyValuePair<string, string>> errors = new();
-            foreach (KeyValuePair<string, string> pair in filteredWords)
-            {
-                PrintDefaultMsg(pair.Value);
-                string line = Console.ReadLine();
-                if (Core.CheckAnswer(line, pair.Key))
-                {
-                    PrintSuccessMsg("SUCCESS");
-                    Console.WriteLine("");
-                }
-                else
-                {
-                    errors.Add(pair);
-                    PrintErrorMsg("FAIL");
-                    PrintErrorMsg($"Right answer is: {pair.Key}");
-                    Console.WriteLine("");
-                }
-            }
-
-            return errors;
-        }
-
+        
         private static void PrintDefaultMsg(string msg)
         {
             Console.ForegroundColor = ConsoleColor.White;
