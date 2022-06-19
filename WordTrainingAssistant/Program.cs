@@ -54,7 +54,7 @@ namespace WordTrainingAssistant
 
             await EnrichWithSynonyms(filteredWords);
 
-            List<Word> errors = CheckAnswerAndPrintResult2(filteredWords);
+            List<Word> errors = CheckAnswerAndPrintResult(filteredWords);
             PrintStatistics(filteredWords, errors);
 
             if (errors.Any())
@@ -67,7 +67,7 @@ namespace WordTrainingAssistant
                     return;
                 }
 
-                CheckAnswerAndPrintResult2(errors);
+                CheckAnswerAndPrintResult(errors);
             }
         }
 
@@ -121,7 +121,7 @@ namespace WordTrainingAssistant
             filteredObject.Transcription = $"[{transcription}]";
         }
 
-        private static List<Word> CheckAnswerAndPrintResult2(List<Word> filteredObjects)
+        private static List<Word> CheckAnswerAndPrintResult(List<Word> filteredObjects)
         {
             List<Word> errors = new();
             foreach (Word word in filteredObjects)
@@ -131,7 +131,7 @@ namespace WordTrainingAssistant
                 List<Word> synonyms = word.Synonyms;
                 if (Core.CheckAnswer(line, word.Name))
                 {
-                    PrintSuccessMsg($"SUCCESS - {word.Name}");
+                    PrintSuccessMsg($"SUCCESS");
                     PrintSynonyms(word);
                     Console.WriteLine("");
                 }
