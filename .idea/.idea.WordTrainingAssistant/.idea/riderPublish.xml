@@ -5,6 +5,7 @@
       <list>
         <option value="$PROJECT_DIR$/WordTrainingAssistant/bin/Release/net5.0/win-x86/publish" />
         <option value="$PROJECT_DIR$/WordTrainingAssistant/bin/Release/net5.0/linux-x64/publish" />
+        <option value="$PROJECT_DIR$/WordTrainingAssistant/bin/Release/net5.0/osx-x64/publish" />
       </list>
     </option>
   </component>
