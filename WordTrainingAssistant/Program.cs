@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.CommandLine.Parsing;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
@@ -16,21 +18,37 @@ namespace WordTrainingAssistant
     {
         private static async Task<int> Main(string[] args)
         {
-            Option<string> dirOption = new("--dir", "Path to SkyEng dictionary pages folder");
+            Option<FileSystemInfo> dirOption = new("--dir", "Path to SkyEng dictionary pages folder");
             dirOption.AddAlias("-d");
             dirOption.IsRequired = true;
+            dirOption.AddValidator(result => { DirOptionValidator(dirOption, result); });
 
             Option<int> countOption = new("--count", description: "Number of words to be trained",
-                getDefaultValue: () => 19);
+                getDefaultValue: () => 20);
             countOption.AddAlias("-c");
-
+            
             RootCommand rootCommand = new("SkyEng vocabulary training application.");
             rootCommand.AddOption(dirOption);
             rootCommand.AddOption(countOption);
 
-            rootCommand.SetHandler(async (dir, count) => { await Run(dir, count); }, dirOption, countOption);
+            rootCommand.SetHandler(async (dir, count) => { await Run(dir.FullName, count); }, dirOption, countOption);
 
             return await rootCommand.InvokeAsync(args);
+        }
+
+        private static void DirOptionValidator(Option<FileSystemInfo> dirOption, OptionResult result)
+        {
+            FileSystemInfo fileSystemInfo = result.GetValueForOption(dirOption);
+            const string errorMessage = "You need to specify the path to the existing folder.";
+            if (fileSystemInfo is { Exists: false })
+            {
+                result.ErrorMessage = errorMessage;
+            }
+
+            if (fileSystemInfo is FileInfo)
+            {
+                result.ErrorMessage = errorMessage;
+            }
         }
 
         private static async Task Run(string dir, int count)
