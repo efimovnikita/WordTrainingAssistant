@@ -82,6 +82,11 @@ namespace WordTrainingAssistant
                     HttpResponseMessage response = await client
                         .GetAsync($"https://dictionary.skyeng.ru/api/public/v1/words/search?search={word.Translation}");
 
+                    if (response.IsSuccessStatusCode == false)
+                    {
+                        continue;
+                    }
+
                     string stringAsync = await response.Content.ReadAsStringAsync();
                     SkyEngClass[] skyEngClasses = JsonConvert.DeserializeObject<SkyEngClass[]>(stringAsync);
                     GetOriginalTranscriptions(skyEngClasses, word);
