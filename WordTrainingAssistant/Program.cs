@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using ShellProgressBar;
 using WordTrainingAssistant.Models;
 using WordTrainingAssistant.Shared;
 using WordTrainingAssistant.Shared.Models;
@@ -94,9 +95,18 @@ namespace WordTrainingAssistant
         {
             if (Core.CheckForInternetConnection())
             {
+                ProgressBarOptions options = new()
+                {
+                    ProgressCharacter = '─',
+                    ProgressBarOnBottom = true,
+                    DisplayTimeInRealTime = false
+                };
+
+                using ProgressBar progressBar = new(filteredWords.Count, "progress bar is on the bottom now", options);
                 HttpClient client = new();
                 foreach (Word word in filteredWords)
                 {
+                    progressBar.Tick($"Search for synonyms for: {word.Name}");
                     HttpResponseMessage response = await client
                         .GetAsync($"https://dictionary.skyeng.ru/api/public/v1/words/search?search={word.Translation}");
 
@@ -111,6 +121,8 @@ namespace WordTrainingAssistant
                     GetAnotherWords(skyEngClasses, word);
                 }
             }
+
+            Console.WriteLine();
         }
 
         private static void GetAnotherWords(SkyEngClass[] skyEngClasses, Word word)
