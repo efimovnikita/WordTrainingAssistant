@@ -7,16 +7,19 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using Konsole;
 using Newtonsoft.Json;
-using ShellProgressBar;
 using WordTrainingAssistant.Models;
 using WordTrainingAssistant.Shared;
 using WordTrainingAssistant.Shared.Models;
+using IConsole = Konsole.IConsole;
 
 namespace WordTrainingAssistant
 {
     internal static class Program
     {
+        private static IConsole _window;
+
         private static async Task<int> Main(string[] args)
         {
             Option<FileSystemInfo> dirOption = new("--dir", "Path to SkyEng dictionary pages folder");
@@ -58,10 +61,15 @@ namespace WordTrainingAssistant
 
             if (words.Any() == false)
             {
+                Console.WriteLine();
                 PrintDefaultMsg("The list of words is empty.");
                 return;
             }
-            
+
+            Console.WriteLine();
+            _window = Window.OpenBox("Vocabulary training application", 130, 6);
+            _window.WriteLine($"Words for training: {count}");
+
             PrintNumberOfWords(words);
             
             List<KeyValuePair<string, string>> randomSetOfWords = Core.GetRandomSetOfWords(count > words.Count
@@ -95,18 +103,11 @@ namespace WordTrainingAssistant
         {
             if (Core.CheckForInternetConnection())
             {
-                ProgressBarOptions options = new()
-                {
-                    ProgressCharacter = '─',
-                    ProgressBarOnBottom = true,
-                    DisplayTimeInRealTime = false
-                };
-
-                using ProgressBar progressBar = new(filteredWords.Count, "progress bar is on the bottom now", options);
+                ProgressBar progressBar = new(_window, PbStyle.SingleLine, filteredWords.Count);
                 HttpClient client = new();
                 foreach (Word word in filteredWords)
                 {
-                    progressBar.Tick($"Search for synonyms for: {word.Name}");
+                    progressBar.Next($"Search synonym for: {word.Name}");
                     HttpResponseMessage response = await client
                         .GetAsync($"https://dictionary.skyeng.ru/api/public/v1/words/search?search={word.Translation}");
 
@@ -209,9 +210,7 @@ namespace WordTrainingAssistant
 
         private static void PrintNumberOfWords(List<KeyValuePair<string, string>> words)
         {
-            Console.WriteLine();
-            PrintDefaultMsg($"Number of imported words: {words.Count}");
-            Console.WriteLine();
+            _window.WriteLine(ConsoleColor.White, $"Imported words: {words.Count}");
         }
 
         private static void PrintStatistics(List<Word> filteredWords, List<Word> errors)
