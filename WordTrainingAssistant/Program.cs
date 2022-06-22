@@ -209,6 +209,7 @@ namespace WordTrainingAssistant
 
         private static void PrintNumberOfWords(List<KeyValuePair<string, string>> words)
         {
+            Console.WriteLine();
             PrintDefaultMsg($"Number of imported words: {words.Count}");
             Console.WriteLine();
         }
