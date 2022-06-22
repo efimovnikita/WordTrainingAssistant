@@ -57,6 +57,7 @@ namespace WordTrainingAssistant
 
         private static async Task Run(string dir, int count)
         {
+            Console.Clear();
             List<KeyValuePair<string, string>> words = await Core.ParseFiles(dir);
 
             if (words.Any() == false)
@@ -65,7 +66,7 @@ namespace WordTrainingAssistant
                 PrintDefaultMsg("The list of words is empty.");
                 return;
             }
-
+            
             Console.WriteLine();
             _window = Window.OpenBox("Vocabulary training application", 130, 6);
             _window.WriteLine($"Words for training: {count}");
