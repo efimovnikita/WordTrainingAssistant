@@ -115,7 +115,7 @@ namespace WordTrainingAssistant
                 HttpClient client = new();
                 foreach (Word word in filteredWords)
                 {
-                    progressBar.Next(word.Name);
+                    progressBar.Next(word.Translation);
                     HttpResponseMessage response = await client
                         .GetAsync($"https://dictionary.skyeng.ru/api/public/v1/words/search?search={word.Translation}");
 
