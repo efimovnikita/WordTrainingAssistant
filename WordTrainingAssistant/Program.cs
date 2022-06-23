@@ -34,12 +34,17 @@ namespace WordTrainingAssistant
             Option<bool> offlineOption = new("--offline", description: "Offline mode", getDefaultValue: () => false);
             offlineOption.AddAlias("-o");
 
+            Option<Direction> directionOption = new("--direction", description: "The direction of word translation",
+                getDefaultValue: () => Direction.RuEn);
+
             RootCommand rootCommand = new("SkyEng vocabulary training application.");
             rootCommand.AddOption(dirOption);
             rootCommand.AddOption(countOption);
             rootCommand.AddOption(offlineOption);
+            rootCommand.AddOption(directionOption);
 
-            rootCommand.SetHandler(async (dir, count, offline) => { await Run(dir.FullName, count, offline); }, dirOption, countOption, offlineOption);
+            rootCommand.SetHandler(async (dir, count, offline, direction) => { await Run(dir.FullName, count, offline, direction); },
+                dirOption, countOption, offlineOption, directionOption);
 
             return await rootCommand.InvokeAsync(args);
         }
@@ -59,10 +64,10 @@ namespace WordTrainingAssistant
             }
         }
 
-        private static async Task Run(string dir, int count, bool offline)
+        private static async Task Run(string dir, int count, bool offline, Direction direction)
         {
             Console.Clear();
-            List<KeyValuePair<string, string>> words = await Core.ParseFiles(dir);
+            List<KeyValuePair<string, string>> words = await Core.ParseFiles(dir, direction);
 
             if (words.Any() == false)
             {
@@ -87,7 +92,7 @@ namespace WordTrainingAssistant
 
             if (offline == false)
             {
-                await EnrichWithSynonyms(filteredWords);
+                await EnrichWithSynonyms(filteredWords, direction);
             }
 
             List<Word> errors = CheckAnswerAndPrintResult(filteredWords);
@@ -107,7 +112,7 @@ namespace WordTrainingAssistant
             }
         }
 
-        private static async Task EnrichWithSynonyms(List<Word> filteredWords)
+        private static async Task EnrichWithSynonyms(List<Word> filteredWords, Direction direction)
         {
             if (Core.CheckForInternetConnection())
             {

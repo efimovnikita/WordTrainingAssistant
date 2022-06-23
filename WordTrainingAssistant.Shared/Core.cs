@@ -81,7 +81,7 @@ namespace WordTrainingAssistant.Shared
                 .ToList().Any();
         }
 
-        public static async Task<List<KeyValuePair<string, string>>> ParseFiles(string dir)
+        public static async Task<List<KeyValuePair<string, string>>> ParseFiles(string dir, Direction direction)
         {
             IConfiguration config = Configuration.Default;
             IBrowsingContext context = BrowsingContext.New(config);
@@ -109,7 +109,15 @@ namespace WordTrainingAssistant.Shared
                             "";
 
                         if (new[] {originalWord, translation}.All(s => String.IsNullOrWhiteSpace(s) == false))
-                            words.Add(new KeyValuePair<string, string>(originalWord, translation));
+                        {
+                            if (direction is Direction.RuEn)
+                            {
+                                words.Add(new KeyValuePair<string, string>(originalWord, translation));
+                                continue;
+                            }
+                            
+                            words.Add(new KeyValuePair<string, string>(translation, originalWord));
+                        }
                     }
                 }
             }
