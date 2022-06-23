@@ -30,12 +30,16 @@ namespace WordTrainingAssistant
             Option<int> countOption = new("--count", description: "Number of words to be trained",
                 getDefaultValue: () => 20);
             countOption.AddAlias("-c");
-            
+
+            Option<bool> offlineOption = new("--offline", description: "Offline mode", getDefaultValue: () => false);
+            offlineOption.AddAlias("-o");
+
             RootCommand rootCommand = new("SkyEng vocabulary training application.");
             rootCommand.AddOption(dirOption);
             rootCommand.AddOption(countOption);
+            rootCommand.AddOption(offlineOption);
 
-            rootCommand.SetHandler(async (dir, count) => { await Run(dir.FullName, count); }, dirOption, countOption);
+            rootCommand.SetHandler(async (dir, count, offline) => { await Run(dir.FullName, count, offline); }, dirOption, countOption, offlineOption);
 
             return await rootCommand.InvokeAsync(args);
         }
@@ -55,7 +59,7 @@ namespace WordTrainingAssistant
             }
         }
 
-        private static async Task Run(string dir, int count)
+        private static async Task Run(string dir, int count, bool offline)
         {
             Console.Clear();
             List<KeyValuePair<string, string>> words = await Core.ParseFiles(dir);
@@ -68,7 +72,7 @@ namespace WordTrainingAssistant
             }
             
             Console.WriteLine();
-            _window = Window.OpenBox("Vocabulary training application", 130, 6);
+            _window = Window.OpenBox("Vocabulary training application", 80, 6);
             _window.WriteLine($"Words for training: {count}");
 
             PrintNumberOfWords(words);
@@ -81,7 +85,10 @@ namespace WordTrainingAssistant
             List<Word> filteredWords = randomSetOfWords
                 .Select(pair => new Word { Name = pair.Key, Translation = pair.Value }).ToList();
 
-            await EnrichWithSynonyms(filteredWords);
+            if (offline == false)
+            {
+                await EnrichWithSynonyms(filteredWords);
+            }
 
             List<Word> errors = CheckAnswerAndPrintResult(filteredWords);
             PrintStatistics(filteredWords, errors);
@@ -108,7 +115,7 @@ namespace WordTrainingAssistant
                 HttpClient client = new();
                 foreach (Word word in filteredWords)
                 {
-                    progressBar.Next($"Search synonym for: {word.Name}");
+                    progressBar.Next(word.Name);
                     HttpResponseMessage response = await client
                         .GetAsync($"https://dictionary.skyeng.ru/api/public/v1/words/search?search={word.Translation}");
 
