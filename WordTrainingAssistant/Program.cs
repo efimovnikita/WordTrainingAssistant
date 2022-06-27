@@ -19,6 +19,7 @@ namespace WordTrainingAssistant
     internal static class Program
     {
         private static IConsole _window;
+        private const string WordsPath = "words.txt";
 
         private static async Task<int> Main(string[] args)
         {
@@ -34,6 +35,8 @@ namespace WordTrainingAssistant
             Option<bool> offlineOption = new("--offline", description: "Offline mode", getDefaultValue: () => false);
             offlineOption.AddAlias("-o");
 
+            Option<bool> useCacheOption = new("--useCache", description: "Use words cache", getDefaultValue: () => false);
+
             Option<Direction> directionOption = new("--direction", description: "The direction of word translation",
                 getDefaultValue: () => Direction.RuEn);
 
@@ -42,9 +45,10 @@ namespace WordTrainingAssistant
             rootCommand.AddOption(countOption);
             rootCommand.AddOption(offlineOption);
             rootCommand.AddOption(directionOption);
+            rootCommand.AddOption(useCacheOption);
 
-            rootCommand.SetHandler(async (dir, count, offline, direction) => { await Run(dir.FullName, count, offline, direction); },
-                dirOption, countOption, offlineOption, directionOption);
+            rootCommand.SetHandler(async (dir, count, offline, direction, cache) => { await Run(dir.FullName, count, offline, direction, cache); },
+                dirOption, countOption, offlineOption, directionOption, useCacheOption);
 
             return await rootCommand.InvokeAsync(args);
         }
@@ -64,39 +68,46 @@ namespace WordTrainingAssistant
             }
         }
 
-        private static async Task Run(string dir, int count, bool offline, Direction direction)
+        private static async Task Run(string dir, int count, bool offline, Direction direction, bool cache)
         {
             Console.Clear();
-            List<KeyValuePair<string, string>> words = await Core.ParseFiles(dir, direction);
+            List<KeyValuePair<string, string>> parseResult = await Core.ParseFiles(dir, direction);
 
-            if (words.Any() == false)
+            List<Word> words = cache == false
+                ? GetWords(parseResult)
+                : await DeserializeObject() ?? GetWords(parseResult);
+            
+            if (words == null || words.Any() == false)
             {
                 Console.WriteLine();
                 PrintDefaultMsg("The list of words is empty.");
                 return;
             }
             
+            if (count > words.Count)
+            {
+                count = words.Count;
+            }
+
             Console.WriteLine();
-            _window = Window.OpenBox("Vocabulary training application", 80, 6);
+            _window = Window.OpenBox("Vocabulary training application", 80, 7);
             _window.WriteLine($"Words for training: {count}");
 
             PrintNumberOfWords(words);
-            
-            List<KeyValuePair<string, string>> randomSetOfWords = Core.GetRandomSetOfWords(count > words.Count
-                    ? words.Count
-                    : count,
-                words);
+            PrintPreviouslyRepeatedWordsCount(words);
 
-            List<Word> filteredWords = randomSetOfWords
-                .Select(pair => new Word { Name = pair.Key, Translation = pair.Value }).ToList();
+            words.Shuffle();
+            List<Word> trainSet = GetTrainSet(count, words);
 
             if (offline == false)
             {
-                await EnrichWithSynonyms(filteredWords, direction);
+                await EnrichWithSynonyms(trainSet, direction);
             }
 
-            List<Word> errors = CheckAnswerAndPrintResult(filteredWords);
-            PrintStatistics(filteredWords, errors);
+            List<Word> errors = CheckAnswerAndPrintResult(trainSet);
+            PrintStatistics(trainSet, errors);
+
+            await SaveWords(words);
 
             if (errors.Any())
             {
@@ -110,6 +121,59 @@ namespace WordTrainingAssistant
 
                 CheckAnswerAndPrintResult(errors);
             }
+            
+            await SaveWords(words);
+        }
+
+        private static void PrintPreviouslyRepeatedWordsCount(List<Word> words)
+        {
+            _window.WriteLine(ConsoleColor.White, $"Previously repeated words: {words.Count(word => word.IsRepeatedToday)}");
+        }
+
+        private static List<Word> GetWords(List<KeyValuePair<string, string>> parseResult)
+        {
+            return parseResult.Distinct().Select(pair => new Word
+                {
+                    Name = pair.Key,
+                    Translation = pair.Value
+                })
+                .ToList();
+        }
+
+        private static async Task<List<Word>> DeserializeObject()
+        {
+            if (File.Exists(WordsPath) == false)
+            {
+                return null;
+            }
+            string text = await File.ReadAllTextAsync(WordsPath);
+            List<Word> words = JsonConvert.DeserializeObject<List<Word>>(text);
+            return (words ?? new List<Word>()).Distinct(Word.NameTranslationComparer).ToList();
+        }
+
+        private static async Task SaveWords(List<Word> words)
+        {
+            string serializeObject = JsonConvert.SerializeObject(words);
+            await File.WriteAllTextAsync(WordsPath, serializeObject);
+        }
+
+        private static List<Word> GetTrainSet(int count, List<Word> words)
+        {
+            List<Word> trainSet = words.Where(word => word.IsRepeatedToday == false).Take(count).ToList();
+            if (trainSet.Count >= count)
+            {
+                return trainSet;
+            }
+
+            int i = count - trainSet.Count;
+            trainSet.AddRange(words.Take(i));
+
+            return trainSet;
+        }
+
+        private static void PrintNumberOfWords(List<Word> words)
+        {
+            _window.WriteLine(ConsoleColor.White, $"Imported words: {words.Count}");
         }
 
         private static async Task EnrichWithSynonyms(List<Word> filteredWords, Direction direction)
@@ -131,7 +195,6 @@ namespace WordTrainingAssistant
 
                     string stringAsync = await response.Content.ReadAsStringAsync();
                     SkyEngClass[] skyEngClasses = JsonConvert.DeserializeObject<SkyEngClass[]>(stringAsync);
-                    GetOriginalTranscriptions(skyEngClasses, word);
                     GetAnotherWords(skyEngClasses, word);
                 }
             }
@@ -158,19 +221,6 @@ namespace WordTrainingAssistant
             word.Synonyms = similarWords;
         }
 
-        private static void GetOriginalTranscriptions(SkyEngClass[] skyEngClasses, Word filteredObject)
-        {
-            SkyEngClass skyEngClass = skyEngClasses?.FirstOrDefault(cl => cl.text.Equals(filteredObject.Name));
-            Meaning meaning = skyEngClass?.meanings[0];
-            if (meaning == null)
-            {
-                return;
-            }
-
-            string transcription = meaning.transcription;
-            filteredObject.Transcription = $"[{transcription}]";
-        }
-
         private static List<Word> CheckAnswerAndPrintResult(List<Word> filteredObjects)
         {
             List<Word> errors = new();
@@ -180,7 +230,9 @@ namespace WordTrainingAssistant
                 string userInput = Console.ReadLine();
                 if (Core.CheckAnswer(userInput, word))
                 {
-                    PrintSuccessMsg($"SUCCESS");
+                    word.DateTime = DateTime.Today;
+
+                    PrintSuccessMsg("SUCCESS");
                     PrintSynonyms(word);
                     Console.WriteLine("");
                 }
@@ -219,11 +271,6 @@ namespace WordTrainingAssistant
         {
             Console.ForegroundColor = ConsoleColor.Gray;
             Console.WriteLine($"{message}");
-        }
-
-        private static void PrintNumberOfWords(List<KeyValuePair<string, string>> words)
-        {
-            _window.WriteLine(ConsoleColor.White, $"Imported words: {words.Count}");
         }
 
         private static void PrintStatistics(List<Word> filteredWords, List<Word> errors)
