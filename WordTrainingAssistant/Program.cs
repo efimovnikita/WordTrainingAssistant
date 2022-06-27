@@ -35,7 +35,7 @@ namespace WordTrainingAssistant
             Option<bool> offlineOption = new("--offline", description: "Offline mode", getDefaultValue: () => false);
             offlineOption.AddAlias("-o");
 
-            Option<bool> useCacheOption = new("--useCache", description: "Use words cache", getDefaultValue: () => false);
+            Option<bool> useCacheOption = new("--useCache", description: "Use words cache", getDefaultValue: () => true);
 
             Option<Direction> directionOption = new("--direction", description: "The direction of word translation",
                 getDefaultValue: () => Direction.RuEn);
