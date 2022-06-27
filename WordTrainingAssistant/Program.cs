@@ -94,7 +94,10 @@ namespace WordTrainingAssistant
             _window.WriteLine($"Words for training: {count}");
 
             PrintNumberOfWords(words);
-            PrintPreviouslyRepeatedWordsCount(words);
+            if (cache)
+            {
+                PrintPreviouslyRepeatedWordsCount(words);
+            }
 
             words.Shuffle();
             List<Word> trainSet = GetTrainSet(count, words);
