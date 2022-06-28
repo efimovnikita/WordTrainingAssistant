@@ -4,7 +4,6 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Security.Cryptography;
 using System.Threading.Tasks;
 using AngleSharp;
 using AngleSharp.Dom;
@@ -49,29 +48,6 @@ namespace WordTrainingAssistant.Shared
                 return false;
             }
         }
-        
-        public static List<KeyValuePair<string, string>> GetRandomSetOfWords(int count, 
-            List<KeyValuePair<string, string>> words)
-        {
-            Random random = new(DateTime.Now.ToString(CultureInfo.InvariantCulture).GetHashCode());
-
-            List<KeyValuePair<string, string>> filteredWords = new();
-            for (int i = 0; i < count; i++)
-            {
-                string key;
-                KeyValuePair<string, string> valuePair;
-                do
-                {
-                    int index = random.Next(0, words.Count);
-                    valuePair = words[index];
-                    key = valuePair.Key;
-                } while (filteredWords.Count(pair => pair.Key.Equals(key)) is not 0);
-
-                filteredWords.Add(valuePair);
-            }
-
-            return filteredWords;
-        }
 
         public static bool CheckAnswer(string userInput, Word word)
         {
@@ -91,13 +67,39 @@ namespace WordTrainingAssistant.Shared
                 .ToList().Any();
         }
 
-        public static async Task<List<KeyValuePair<string, string>>> ParseFiles(string dir, Direction direction)
+        public static async Task<List<KeyValuePair<string, string>>> ParseFiles(string dir, Direction direction,
+            FileSystemInfo externalDictionary)
         {
+            List<KeyValuePair<string, string>> words = await ParseWebPage(dir, direction);
+            words.AddRange(await ParseWordsDictionary(externalDictionary));
+
+            return words;
+        }
+
+        private static async Task<List<KeyValuePair<string, string>>> ParseWordsDictionary(FileSystemInfo externalDictionary)
+        {
+            if (externalDictionary == null)
+            {
+                return new List<KeyValuePair<string, string>>(0);
+            }
+
+            string textAsync = await File.ReadAllTextAsync(externalDictionary.FullName);
+            string[] rows = textAsync.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+            List<KeyValuePair<string, string>> list = rows
+                .Select(row => row.Split(':', StringSplitOptions.RemoveEmptyEntries))
+                .Select(pairs => new KeyValuePair<string, string>(pairs[0], pairs[1])).ToList();
+
+            return list;
+        }
+
+        private static async Task<List<KeyValuePair<string, string>>> ParseWebPage(string dir, Direction direction)
+        {
+            List<KeyValuePair<string, string>> words = new();
+
             IConfiguration config = Configuration.Default;
             IBrowsingContext context = BrowsingContext.New(config);
             string[] files = Directory.GetFiles(dir);
 
-            List<KeyValuePair<string, string>> words = new();
             foreach (string file in files)
             {
                 string source = await File.ReadAllTextAsync(file);
@@ -118,14 +120,14 @@ namespace WordTrainingAssistant.Shared
                             liElement.QuerySelectorAll("div.translation").FirstOrDefault()?.TextContent.Trim() ??
                             "";
 
-                        if (new[] {originalWord, translation}.All(s => String.IsNullOrWhiteSpace(s) == false))
+                        if (new[] { originalWord, translation }.All(s => String.IsNullOrWhiteSpace(s) == false))
                         {
                             if (direction is Direction.RuEn)
                             {
                                 words.Add(new KeyValuePair<string, string>(originalWord, translation));
                                 continue;
                             }
-                            
+
                             words.Add(new KeyValuePair<string, string>(translation, originalWord));
                         }
                     }

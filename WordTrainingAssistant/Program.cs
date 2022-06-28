@@ -40,15 +40,39 @@ namespace WordTrainingAssistant
             Option<Direction> directionOption = new("--direction", description: "The direction of word translation",
                 getDefaultValue: () => Direction.RuEn);
 
+            Option<FileSystemInfo> externalDictionaryOption = new Option<FileSystemInfo>("--externalDictionary", 
+                description: "The path to the external dictionary file",
+                getDefaultValue: () => null);
+            externalDictionaryOption.AddAlias("-e");
+            
             RootCommand rootCommand = new("SkyEng vocabulary training application.");
             rootCommand.AddOption(dirOption);
             rootCommand.AddOption(countOption);
             rootCommand.AddOption(offlineOption);
             rootCommand.AddOption(directionOption);
             rootCommand.AddOption(useCacheOption);
+            rootCommand.AddOption(externalDictionaryOption);
 
-            rootCommand.SetHandler(async (dir, count, offline, direction, cache) => { await Run(dir.FullName, count, offline, direction, cache); },
-                dirOption, countOption, offlineOption, directionOption, useCacheOption);
+            rootCommand.SetHandler(async (dir,
+                    count,
+                    offline,
+                    direction,
+                    cache,
+                    externalDictionary) =>
+                {
+                    await Run(dir.FullName,
+                        count,
+                        offline,
+                        direction,
+                        cache,
+                        externalDictionary);
+                },
+                dirOption,
+                countOption,
+                offlineOption,
+                directionOption,
+                useCacheOption,
+                externalDictionaryOption);
 
             return await rootCommand.InvokeAsync(args);
         }
@@ -68,14 +92,15 @@ namespace WordTrainingAssistant
             }
         }
 
-        private static async Task Run(string dir, int count, bool offline, Direction direction, bool cache)
+        private static async Task Run(string dir, int count, bool offline, Direction direction, bool cache,
+            FileSystemInfo externalDictionary)
         {
             Console.Clear();
-            List<KeyValuePair<string, string>> parseResult = await Core.ParseFiles(dir, direction);
+            List<KeyValuePair<string, string>> parsingResult = await Core.ParseFiles(dir, direction, externalDictionary);
 
             List<Word> words = cache == false
-                ? GetWords(parseResult)
-                : await DeserializeObject() ?? GetWords(parseResult);
+                ? GetWords(parsingResult)
+                : await ReadCache() ?? GetWords(parsingResult);
             
             if (words == null || words.Any() == false)
             {
@@ -141,7 +166,7 @@ namespace WordTrainingAssistant
                 .ToList();
         }
 
-        private static async Task<List<Word>> DeserializeObject()
+        private static async Task<List<Word>> ReadCache()
         {
             if (File.Exists(WordsPath) == false)
             {

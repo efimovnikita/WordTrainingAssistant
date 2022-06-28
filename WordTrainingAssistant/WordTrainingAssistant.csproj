@@ -17,4 +17,10 @@
       <ProjectReference Include="..\WordTrainingAssistant.Shared\WordTrainingAssistant.Shared.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Update="dictionary.txt">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
 </Project>
