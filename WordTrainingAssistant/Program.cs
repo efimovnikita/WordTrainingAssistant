@@ -104,7 +104,7 @@ namespace WordTrainingAssistant
 
             if (offline == false)
             {
-                await EnrichWithSynonyms(trainSet, direction);
+                await EnrichWithSynonyms(trainSet);
             }
 
             List<Word> errors = CheckAnswerAndPrintResult(trainSet);
@@ -124,8 +124,6 @@ namespace WordTrainingAssistant
 
                 CheckAnswerAndPrintResult(errors);
             }
-            
-            await SaveWords(words);
         }
 
         private static void PrintPreviouslyRepeatedWordsCount(List<Word> words)
@@ -179,7 +177,7 @@ namespace WordTrainingAssistant
             _window.WriteLine(ConsoleColor.White, $"Imported words: {words.Count}");
         }
 
-        private static async Task EnrichWithSynonyms(List<Word> filteredWords, Direction direction)
+        private static async Task EnrichWithSynonyms(List<Word> filteredWords)
         {
             if (Core.CheckForInternetConnection())
             {
