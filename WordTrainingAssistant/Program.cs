@@ -4,6 +4,7 @@ using System.CommandLine;
 using System.CommandLine.Parsing;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -40,10 +41,10 @@ namespace WordTrainingAssistant
             Option<Direction> directionOption = new("--direction", description: "The direction of word translation",
                 getDefaultValue: () => Direction.RuEn);
 
-            Option<FileSystemInfo> externalDictionaryOption = new Option<FileSystemInfo>("--externalDictionary", 
-                description: "The path to the external dictionary file",
-                getDefaultValue: () => null);
+            Option<FileSystemInfo> externalDictionaryOption = new("--externalDictionary", 
+                description: "The path to the external dictionary file");
             externalDictionaryOption.AddAlias("-e");
+            externalDictionaryOption.AddValidator(result => { FilePathOptionValidator(externalDictionaryOption, result);});
             
             RootCommand rootCommand = new("SkyEng vocabulary training application.");
             rootCommand.AddOption(dirOption);
@@ -87,6 +88,27 @@ namespace WordTrainingAssistant
             }
 
             if (fileSystemInfo is FileInfo)
+            {
+                result.ErrorMessage = errorMessage;
+            }
+        }
+        
+        private static void FilePathOptionValidator(Option<FileSystemInfo> pathOption, OptionResult result)
+        {
+            FileSystemInfo fileSystemInfo = result.GetValueForOption(pathOption);
+            const string errorMessage = "You need to specify the path to the existing dictionary file.";
+            
+            if (fileSystemInfo == null)
+            {
+                result.ErrorMessage = errorMessage;
+            }
+            
+            if (fileSystemInfo is not FileInfo)
+            {
+                result.ErrorMessage = errorMessage;
+            }
+
+            if (File.Exists(fileSystemInfo!.FullName) == false)
             {
                 result.ErrorMessage = errorMessage;
             }

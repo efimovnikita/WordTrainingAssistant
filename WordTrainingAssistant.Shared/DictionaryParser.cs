@@ -1,0 +1,27 @@
+﻿using System.Collections.Generic;
+using System.Linq;
+using Sprache;
+
+namespace WordTrainingAssistant.Shared
+{
+    public static class DictionaryParser
+    {
+        private static Parser<KeyValuePair<string, string>> DictionaryRow =>
+            from word in Parse.CharExcept(':').Many().Text()
+            from separator in Parse.Char(':')
+            from translation in Parse.AnyChar.Except(Parse.LineTerminator).Many().Text()
+            select new KeyValuePair<string, string>(word, translation);
+
+        private static Parser<KeyValuePair<string, string>[]> FullDictionary =>
+            from rows in DictionaryRow.DelimitedBy(Parse.LineTerminator)
+            select rows.ToArray();
+
+        public static KeyValuePair<string, string>[] ParseDictionary(string text, Direction direction)
+        {
+            KeyValuePair<string,string>[] pairs = FullDictionary.Parse(text);
+            return direction is Direction.RuEn
+                ? pairs
+                : pairs.Select(pair => new KeyValuePair<string, string>(pair.Value, pair.Key)).ToArray();
+        }
+    }
+}

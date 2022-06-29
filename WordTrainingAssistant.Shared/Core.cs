@@ -37,10 +37,10 @@ namespace WordTrainingAssistant.Shared
                         "http://www.gstatic.com/generate_204",
                 };
 
-                var request = (HttpWebRequest)WebRequest.Create(url);
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
                 request.KeepAlive = false;
                 request.Timeout = timeoutMs;
-                using var response = (HttpWebResponse)request.GetResponse();
+                using HttpWebResponse response = (HttpWebResponse)request.GetResponse();
                 return true;
             }
             catch
@@ -71,25 +71,21 @@ namespace WordTrainingAssistant.Shared
             FileSystemInfo externalDictionary)
         {
             List<KeyValuePair<string, string>> words = await ParseWebPage(dir, direction);
-            words.AddRange(await ParseWordsDictionary(externalDictionary));
+            words.AddRange(await ParseDictionary(externalDictionary, direction));
 
             return words;
         }
 
-        private static async Task<List<KeyValuePair<string, string>>> ParseWordsDictionary(FileSystemInfo externalDictionary)
+        private static async Task<KeyValuePair<string, string>[]> ParseDictionary(FileSystemInfo externalDictionary,
+            Direction direction)
         {
             if (externalDictionary == null)
             {
-                return new List<KeyValuePair<string, string>>(0);
+                return Array.Empty<KeyValuePair<string,string>>();
             }
 
-            string textAsync = await File.ReadAllTextAsync(externalDictionary.FullName);
-            string[] rows = textAsync.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-            List<KeyValuePair<string, string>> list = rows
-                .Select(row => row.Split(':', StringSplitOptions.RemoveEmptyEntries))
-                .Select(pairs => new KeyValuePair<string, string>(pairs[0], pairs[1])).ToList();
-
-            return list;
+            string rawText = await File.ReadAllTextAsync(externalDictionary.FullName);
+            return DictionaryParser.ParseDictionary(rawText, direction: direction);
         }
 
         private static async Task<List<KeyValuePair<string, string>>> ParseWebPage(string dir, Direction direction)
