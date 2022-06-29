@@ -107,30 +107,27 @@ namespace WordTrainingAssistant.Shared
                 {
                     IHtmlCollection<IElement> liElements = wordSet.QuerySelectorAll("li");
 
-                    foreach (IElement liElement in liElements)
-                    {
-                        string originalWord =
-                            liElement.QuerySelectorAll("div.original > span.text").FirstOrDefault()?.TextContent
-                                .Trim().Replace('’', '\'') ?? "";
-                        string translation =
-                            liElement.QuerySelectorAll("div.translation").FirstOrDefault()?.TextContent.Trim() ??
-                            "";
-
-                        if (new[] { originalWord, translation }.All(s => String.IsNullOrWhiteSpace(s) == false))
-                        {
-                            if (direction is Direction.RuEn)
-                            {
-                                words.Add(new KeyValuePair<string, string>(originalWord, translation));
-                                continue;
-                            }
-
-                            words.Add(new KeyValuePair<string, string>(translation, originalWord));
-                        }
-                    }
+                    words.AddRange(liElements
+                        .Select(liElement => GetWordAndTranslationFromLiElement(liElement, direction)).Where(item =>
+                            !new[] {item.Key, item.Value}.Any(String.IsNullOrWhiteSpace)));
                 }
             }
 
             return words;
+        }
+
+        private static KeyValuePair<string, string> GetWordAndTranslationFromLiElement(IElement li,
+            Direction direction)
+        {
+            string name =
+                li.QuerySelectorAll("div.original > span.text").FirstOrDefault()?.TextContent
+                    .Trim().Replace('’', '\'') ?? "";
+            string translation =
+                li.QuerySelectorAll("div.translation").FirstOrDefault()?.TextContent.Trim() ?? "";
+
+            return direction is Direction.RuEn
+                ? new KeyValuePair<string, string>(name, translation)
+                : new KeyValuePair<string, string>(translation, name);
         }
     }
 }
