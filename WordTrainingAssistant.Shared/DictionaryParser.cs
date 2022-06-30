@@ -16,12 +16,10 @@ namespace WordTrainingAssistant.Shared
             from rows in DictionaryRow.DelimitedBy(Parse.LineTerminator)
             select rows.ToArray();
 
-        public static KeyValuePair<string, string>[] ParseDictionary(string text, Direction direction)
+        public static KeyValuePair<string, string>[] ParseDictionary(string text)
         {
             KeyValuePair<string,string>[] pairs = FullDictionary.Parse(text);
-            return direction is Direction.RuEn
-                ? pairs
-                : pairs.Select(pair => new KeyValuePair<string, string>(pair.Value, pair.Key)).ToArray();
+            return pairs;
         }
     }
 }

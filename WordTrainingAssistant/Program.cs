@@ -4,7 +4,6 @@ using System.CommandLine;
 using System.CommandLine.Parsing;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -25,8 +24,6 @@ namespace WordTrainingAssistant
         private static async Task<int> Main(string[] args)
         {
             Option<FileSystemInfo> dirOption = new("--dir", "Path to SkyEng dictionary pages folder");
-            dirOption.AddAlias("-d");
-            dirOption.IsRequired = true;
             dirOption.AddValidator(result => { DirOptionValidator(dirOption, result); });
 
             Option<int> countOption = new("--count", description: "Number of words to be trained",
@@ -37,45 +34,67 @@ namespace WordTrainingAssistant
             offlineOption.AddAlias("-o");
 
             Option<bool> useCacheOption = new("--useCache", description: "Use words cache", getDefaultValue: () => true);
-
-            Option<Direction> directionOption = new("--direction", description: "The direction of word translation",
-                getDefaultValue: () => Direction.RuEn);
-
+            
             Option<FileSystemInfo> externalDictionaryOption = new("--externalDictionary", 
                 description: "The path to the external dictionary file");
             externalDictionaryOption.AddAlias("-e");
             externalDictionaryOption.AddValidator(result => { FilePathOptionValidator(externalDictionaryOption, result);});
+
+            Option<FileSystemInfo> driverOption = new("--driver", description: "Google Chrome browser driver");
+            driverOption.AddAlias("-d");
+            driverOption.AddValidator(result => DirOptionValidator(driverOption, result));
+
+            Option<string> loginOption = new("--login", description: "Login for an SkyEng account");
+            loginOption.AddAlias("-l");
+            loginOption.AddValidator(result => StringOptionValidator(loginOption, nameof(loginOption), result));
             
+            Option<string> passwordOption = new("--password", description: "Password for an SkyEng account");
+            passwordOption.AddAlias("-p");
+            passwordOption.AddValidator(result => StringOptionValidator(passwordOption, nameof(passwordOption), result));
+
             RootCommand rootCommand = new("SkyEng vocabulary training application.");
             rootCommand.AddOption(dirOption);
             rootCommand.AddOption(countOption);
             rootCommand.AddOption(offlineOption);
-            rootCommand.AddOption(directionOption);
             rootCommand.AddOption(useCacheOption);
             rootCommand.AddOption(externalDictionaryOption);
+            rootCommand.AddOption(driverOption);
+            rootCommand.AddOption(loginOption);
+            rootCommand.AddOption(passwordOption);
 
-            rootCommand.SetHandler(async (dir,
-                    count,
-                    offline,
-                    direction,
-                    cache,
-                    externalDictionary) =>
+            rootCommand.SetHandler(async context =>
                 {
-                    await Run(dir.FullName,
+                    FileSystemInfo dir = context.ParseResult.GetValueForOption(dirOption);
+                    int count = context.ParseResult.GetValueForOption(countOption);
+                    bool offline = context.ParseResult.GetValueForOption(offlineOption);
+                    bool cache = context.ParseResult.GetValueForOption(useCacheOption);
+                    FileSystemInfo externalDictionary = context.ParseResult.GetValueForOption(externalDictionaryOption);
+                    FileSystemInfo driver = context.ParseResult.GetValueForOption(driverOption);
+                    string login = context.ParseResult.GetValueForOption(loginOption);
+                    string password = context.ParseResult.GetValueForOption(passwordOption);
+
+                    await Run(dir,
                         count,
                         offline,
-                        direction,
                         cache,
-                        externalDictionary);
-                },
-                dirOption,
-                countOption,
-                offlineOption,
-                directionOption,
-                useCacheOption,
-                externalDictionaryOption);
+                        externalDictionary,
+                        driver,
+                        login,
+                        password);
+                });
 
             return await rootCommand.InvokeAsync(args);
+        }
+
+        private static void StringOptionValidator(Option<string> option, string name, OptionResult result)
+        {
+            string errorMessage = $"The option {name} cannot be blank.";
+            string value = result.GetValueForOption(option);
+
+            if (String.IsNullOrWhiteSpace(value))
+            {
+                result.ErrorMessage = errorMessage;
+            }
         }
 
         private static void DirOptionValidator(Option<FileSystemInfo> dirOption, OptionResult result)
@@ -96,7 +115,7 @@ namespace WordTrainingAssistant
         private static void FilePathOptionValidator(Option<FileSystemInfo> pathOption, OptionResult result)
         {
             FileSystemInfo fileSystemInfo = result.GetValueForOption(pathOption);
-            const string errorMessage = "You need to specify the path to the existing dictionary file.";
+            const string errorMessage = "You need to specify the path to the existing file.";
             
             if (fileSystemInfo == null)
             {
@@ -114,15 +133,23 @@ namespace WordTrainingAssistant
             }
         }
 
-        private static async Task Run(string dir, int count, bool offline, Direction direction, bool cache,
-            FileSystemInfo externalDictionary)
+        private static async Task Run(FileSystemInfo dir, int count, bool offline, bool cache,
+            FileSystemInfo externalDictionary, FileSystemInfo driver, string login, string password)
         {
             Console.Clear();
-            List<KeyValuePair<string, string>> parsingResult = await Core.ParseFiles(dir, direction, externalDictionary);
-
-            List<Word> words = cache == false
-                ? GetWords(parsingResult)
-                : await ReadCache() ?? GetWords(parsingResult);
+            List<Word> words;
+            if (new[]{ driver?.FullName ?? "", login, password}.Any(String.IsNullOrWhiteSpace))
+            {
+                words = cache
+                    ? await ReadCache() ?? GetWords(await Core.ParseFiles(dir, externalDictionary))
+                    : GetWords(await Core.ParseFiles(dir, externalDictionary));
+            }
+            else
+            {
+                words = cache
+                    ? await ReadCache() ?? GetWords(await Core.GetWordsFromSite(driver!.FullName, login, password, externalDictionary))
+                    : GetWords(await Core.GetWordsFromSite(driver!.FullName, login, password, externalDictionary));
+            }
             
             if (words == null || words.Any() == false)
             {
