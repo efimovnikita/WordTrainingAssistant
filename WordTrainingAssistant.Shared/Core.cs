@@ -73,8 +73,15 @@ namespace WordTrainingAssistant.Shared
 
         public static async Task<List<KeyValuePair<string, string>>> ParseFiles(FileSystemInfo dir,
             FileSystemInfo externalDictionary)
-        {
-            List<KeyValuePair<string, string>> words = await ParseWebPage(dir.FullName);
+        {            
+            List<KeyValuePair<string, string>> words = new();
+
+            if (dir == null)
+            {
+                return words;
+            }
+
+            words = await ParseWebPage(dir.FullName);
             words.AddRange(await ParseDictionary(externalDictionary));
 
             return words;
