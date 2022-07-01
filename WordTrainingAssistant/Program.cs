@@ -251,15 +251,20 @@ namespace WordTrainingAssistant
             _window.WriteLine(ConsoleColor.White, $"Imported words: {words.Count}");
         }
 
-        private static async Task EnrichWithSynonyms(List<Word> filteredWords)
+        private static async Task EnrichWithSynonyms(List<Word> words)
         {
-            if (Core.CheckForInternetConnection())
+            if (!Core.CheckForInternetConnection())
             {
-                ProgressBar progressBar = new(_window, PbStyle.SingleLine, filteredWords.Count);
-                HttpClient client = new();
-                foreach (Word word in filteredWords)
+                return;
+            }
+
+            ProgressBar progressBar = new(_window, PbStyle.SingleLine, words.Count);
+            HttpClient client = new();
+            foreach (Word word in words)
+            {
+                progressBar.Next(word.Translation);
+                try
                 {
-                    progressBar.Next(word.Translation);
                     HttpResponseMessage response = await client
                         .GetAsync($"https://dictionary.skyeng.ru/api/public/v1/words/search?search={word.Translation}");
 
@@ -271,6 +276,10 @@ namespace WordTrainingAssistant
                     string stringAsync = await response.Content.ReadAsStringAsync();
                     SkyEngClass[] skyEngClasses = JsonConvert.DeserializeObject<SkyEngClass[]>(stringAsync);
                     GetAnotherWords(skyEngClasses, word);
+                }
+                catch
+                {
+                    // ignored
                 }
             }
 
