@@ -3,16 +3,16 @@ SkyEng vocabulary training application.
 
 ### Arguments at the first start of an application
 ```shell
-./WordTrainingAssistant -d "chrome_driver_folder" -l "skyeng_login" -p "skyeng_password" -e "dictionary_file"
+./words -d "chrome_driver_folder" -l "skyeng_login" -p "skyeng_password" -e "dictionary_file"
 ```
 ### Arguments for subsequent launches of the application
 ```shell
-./WordTrainingAssistant
+./words
 ```
 ### Full arguments list
 ```
 Usage:
-  WordTrainingAssistant [options]
+  words [options]
 
 Options:
   --dir <dir>                                    Path to SkyEng dictionary pages folder
