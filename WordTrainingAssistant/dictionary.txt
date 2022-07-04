@@ -1,2 +1,2 @@
 ﻿knees-up:шумная вечеринка
-get/have your ducks in a row:сделать все необходимые приготовления
+get your ducks in a row:сделать все необходимые приготовления

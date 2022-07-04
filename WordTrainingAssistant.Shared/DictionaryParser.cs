@@ -16,10 +16,6 @@ namespace WordTrainingAssistant.Shared
             from rows in DictionaryRow.DelimitedBy(Parse.LineTerminator)
             select rows.ToArray();
 
-        public static KeyValuePair<string, string>[] ParseDictionary(string text)
-        {
-            KeyValuePair<string,string>[] pairs = FullDictionary.Parse(text);
-            return pairs;
-        }
+        public static KeyValuePair<string, string>[] ParseDictionary(string text) => FullDictionary.Parse(text);
     }
 }
