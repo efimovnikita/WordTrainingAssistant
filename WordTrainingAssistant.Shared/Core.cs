@@ -80,7 +80,8 @@ namespace WordTrainingAssistant.Shared
                 return false;
             }
 
-            return word.synonyms.Where(synonym => synonym.name.Equals(userInput, StringComparison.InvariantCultureIgnoreCase))
+            return word.synonyms.Where(synonym => synonym.name.Equals(userInput, 
+                    StringComparison.InvariantCultureIgnoreCase))
                 .ToList().Any();
         }
         
@@ -106,8 +107,8 @@ namespace WordTrainingAssistant.Shared
             return words;
         }
         
-        private static async Task<List<KeyValuePair<string, string>>> GetWordsFromApi(string login, string password, string studentId,
-            string driverPath)
+        private static async Task<List<KeyValuePair<string, string>>> GetWordsFromApi(string login, string password, 
+            string studentId, string driverPath)
         {
             ChromeDriver driver = null;
             try
@@ -125,21 +126,26 @@ namespace WordTrainingAssistant.Shared
 
                 driver.Navigate().GoToUrl("https://vimbox.skyeng.ru/words/vocabulary");
                 
-                IWebElement link = driver.FindElement(By.CssSelector("[class='link link--primary js-phone-form-to-username-password']"), 5);
+                IWebElement link = driver
+                    .FindElement(By.CssSelector("[class='link link--primary js-phone-form-to-username-password']"),
+                        5);
                 if (link == null)
                 {
                     return new List<KeyValuePair<string, string>>();
                 }
                 link.Click();
                 
-                IWebElement loginBox = driver.FindElement(By.CssSelector("[class='input js-username-password-form-input']"), 5);
+                IWebElement loginBox = driver
+                    .FindElement(By.CssSelector("[class='input js-username-password-form-input']"), 
+                        5);
                 if (loginBox == null)
                 {
                     return new List<KeyValuePair<string, string>>();
                 }
 
                 IWebElement passwordBox = driver.FindElement(
-                    By.CssSelector("[class='input js-username-password-form-input js-username-password-form-password-input']"), 5);
+                    By.CssSelector("[class='input js-username-password-form-input js-username-password-form-password-input']"), 
+                    5);
                 if (password == null)
                 {
                     return new List<KeyValuePair<string, string>>();
@@ -148,7 +154,8 @@ namespace WordTrainingAssistant.Shared
                 loginBox.SendKeys(login);
                 passwordBox.SendKeys(password);
 
-                IWebElement button = driver.FindElement(By.CssSelector("[class='button button--primary']"), 5);
+                IWebElement button = driver.FindElement(By.CssSelector("[class='button button--primary']"), 
+                    5);
                 if (button == null)
                 {
                     return new List<KeyValuePair<string, string>>();
@@ -160,23 +167,26 @@ namespace WordTrainingAssistant.Shared
                     .Perform();
                 
                 Cookie cookie = driver.Manage().Cookies.GetCookieNamed("token_global");
+                
+                driver.Quit();
 
                 HttpClient httpClient = new();
                 SetsRoot wordSets = await GetWordSets(cookie, studentId, httpClient);
                 List<int> setsIds = wordSets.data.Select(datum => datum.id).ToList();
-
+                
                 List<int> wordIds = new();
-                foreach (int setsId in setsIds)
+                foreach (int setsId in setsIds.Distinct())
                 {
                     SetRoot setWords = await GetWordsFromSet(studentId, setsId, cookie, httpClient);
                     List<int> meaningsIds = setWords.data.Select(datum => datum.meaningId).ToList();
                     wordIds.AddRange(meaningsIds);
                 }
                 
-                List<MeaningRoot> meanings = new();
-                meanings.AddRange(await GetMeanings(wordIds, httpClient));
+                List<MeaningRoot> meanings = new(await GetMeanings(wordIds.Distinct().ToList(), httpClient));
                 
-                List<KeyValuePair<string, string>> words = meanings.Select(meaning => new KeyValuePair<string, string>(meaning.text, meaning.translation.text)).ToList();
+                List<KeyValuePair<string, string>> words = meanings
+                    .Select(meaning => new KeyValuePair<string, string>(meaning.text, meaning.translation.text))
+                    .ToList();
                 return words;
             }
             catch (Exception exception)
@@ -217,7 +227,8 @@ namespace WordTrainingAssistant.Shared
             return meanings;
         }
 
-        private static async Task<SetRoot> GetWordsFromSet(string studentId, int setsId, Cookie cookie, HttpClient httpClient)
+        private static async Task<SetRoot> GetWordsFromSet(string studentId, int setsId, Cookie cookie, 
+            HttpClient httpClient)
         {
             HttpRequestMessage request = new()
             {
