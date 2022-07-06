@@ -5,14 +5,13 @@ namespace WordTrainingAssistant.Shared.Models
 {
     [Serializable]public class Word
     {
-        public string Name { get; set; } = "";
-        public string Transcription { get; set; } = "";
-        public string Translation { get; set; } = "";
-        public List<Word> Synonyms { get; set; } = new();
+        public string name { get; set; } = "";
+        public string translation { get; set; } = "";
+        public List<Word> synonyms { get; set; } = new();
 
-        public DateTime DateTime { get; set; }
+        public DateTime dateTime { get; set; }
 
-        public bool IsRepeatedToday => this.DateTime == DateTime.Today;
+        public bool isRepeatedToday => dateTime == DateTime.Today;
 
         private sealed class NameTranslationEqualityComparer : IEqualityComparer<Word>
         {
@@ -22,15 +21,13 @@ namespace WordTrainingAssistant.Shared.Models
                 if (ReferenceEquals(x, null)) return false;
                 if (ReferenceEquals(y, null)) return false;
                 if (x.GetType() != y.GetType()) return false;
-                return x.Name == y.Name && x.Translation == y.Translation;
+                return x.name == y.name && x.translation == y.translation;
             }
 
             public int GetHashCode(Word obj)
             {
-                return HashCode.Combine(obj.Name, obj.Translation);
+                return HashCode.Combine(obj.name, obj.translation);
             }
         }
-
-        public static IEqualityComparer<Word> NameTranslationComparer { get; } = new NameTranslationEqualityComparer();
     }
 }

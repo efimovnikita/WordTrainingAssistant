@@ -23,9 +23,6 @@ namespace WordTrainingAssistant
 
         private static async Task<int> Main(string[] args)
         {
-            Option<FileSystemInfo> dirOption = new("--dir", "Path to SkyEng dictionary pages folder");
-            dirOption.AddValidator(result => { DirOptionValidator(dirOption, result); });
-
             Option<int> countOption = new("--count", description: "Number of words to be trained",
                 getDefaultValue: () => 20);
             countOption.AddAlias("-c");
@@ -35,52 +32,59 @@ namespace WordTrainingAssistant
 
             Option<bool> useCacheOption = new("--useCache", description: "Use words cache", getDefaultValue: () => true);
             
-            Option<FileSystemInfo> externalDictionaryOption = new("--externalDictionary", 
+            Option<FileSystemInfo> dictionaryOption = new("--dictionary", 
                 description: "The path to the external dictionary file");
-            externalDictionaryOption.AddAlias("-e");
-            externalDictionaryOption.AddValidator(result => { FilePathOptionValidator(externalDictionaryOption, result);});
+            dictionaryOption.AddAlias("-e");
+            dictionaryOption.AddValidator(result => { FilePathOptionValidator(dictionaryOption, result);});
 
             Option<FileSystemInfo> driverOption = new("--driver", description: "Google Chrome browser driver");
             driverOption.AddAlias("-d");
             driverOption.AddValidator(result => DirOptionValidator(driverOption, result));
+            driverOption.IsRequired = true;
 
             Option<string> loginOption = new("--login", description: "Login for an SkyEng account");
             loginOption.AddAlias("-l");
             loginOption.AddValidator(result => StringOptionValidator(loginOption, nameof(loginOption), result));
+            loginOption.IsRequired = true;
             
             Option<string> passwordOption = new("--password", description: "Password for an SkyEng account");
             passwordOption.AddAlias("-p");
             passwordOption.AddValidator(result => StringOptionValidator(passwordOption, nameof(passwordOption), result));
+            passwordOption.IsRequired = true;
 
+            Option<string> studentIdOption = new Option<string>("--student", description: "Student id");
+            studentIdOption.AddAlias("-s");
+            studentIdOption.IsRequired = true;
+            
             RootCommand rootCommand = new("SkyEng vocabulary training application.");
-            rootCommand.AddOption(dirOption);
             rootCommand.AddOption(countOption);
             rootCommand.AddOption(offlineOption);
             rootCommand.AddOption(useCacheOption);
-            rootCommand.AddOption(externalDictionaryOption);
+            rootCommand.AddOption(dictionaryOption);
             rootCommand.AddOption(driverOption);
             rootCommand.AddOption(loginOption);
             rootCommand.AddOption(passwordOption);
+            rootCommand.AddOption(studentIdOption);
 
             rootCommand.SetHandler(async context =>
                 {
-                    FileSystemInfo dir = context.ParseResult.GetValueForOption(dirOption);
                     int count = context.ParseResult.GetValueForOption(countOption);
                     bool offline = context.ParseResult.GetValueForOption(offlineOption);
                     bool cache = context.ParseResult.GetValueForOption(useCacheOption);
-                    FileSystemInfo externalDictionary = context.ParseResult.GetValueForOption(externalDictionaryOption);
+                    FileSystemInfo dictionary = context.ParseResult.GetValueForOption(dictionaryOption);
                     FileSystemInfo driver = context.ParseResult.GetValueForOption(driverOption);
                     string login = context.ParseResult.GetValueForOption(loginOption);
                     string password = context.ParseResult.GetValueForOption(passwordOption);
+                    string id = context.ParseResult.GetValueForOption(studentIdOption);
 
-                    await Run(dir,
-                        count,
+                    await Run(count,
                         offline,
                         cache,
-                        externalDictionary,
+                        dictionary,
                         driver,
                         login,
-                        password);
+                        password, 
+                        id);
                 });
 
             return await rootCommand.InvokeAsync(args);
@@ -133,23 +137,13 @@ namespace WordTrainingAssistant
             }
         }
 
-        private static async Task Run(FileSystemInfo dir, int count, bool offline, bool cache,
-            FileSystemInfo externalDictionary, FileSystemInfo driver, string login, string password)
+        private static async Task Run(int count, bool offline, bool cache,
+            FileSystemInfo dictionary, FileSystemInfo driver, string login, string password, string studentId)
         {
             Console.Clear();
-            List<Word> words;
-            if (new[]{ driver?.FullName ?? "", login, password}.Any(String.IsNullOrWhiteSpace))
-            {
-                words = cache
-                    ? await ReadCache() ?? GetWords(await Core.ParseFiles(dir, externalDictionary))
-                    : GetWords(await Core.ParseFiles(dir, externalDictionary));
-            }
-            else
-            {
-                words = cache
-                    ? await ReadCache() ?? GetWords(await Core.GetWordsFromSite(driver!.FullName, login, password, externalDictionary))
-                    : GetWords(await Core.GetWordsFromSite(driver!.FullName, login, password, externalDictionary));
-            }
+            List<Word> words = cache
+                ? await ReadCache() ?? GetWords(await Core.GetWordsFromSite(login, password, studentId, driver!.FullName, dictionary))
+                : GetWords(await Core.GetWordsFromSite(login, password, studentId, driver!.FullName, dictionary));
             
             if (words == null || words.Any() == false)
             {
@@ -202,15 +196,15 @@ namespace WordTrainingAssistant
 
         private static void PrintPreviouslyRepeatedWordsCount(List<Word> words)
         {
-            _window.WriteLine(ConsoleColor.White, $"Previously repeated words: {words.Count(word => word.IsRepeatedToday)}");
+            _window.WriteLine(ConsoleColor.White, $"Previously repeated words: {words.Count(word => word.isRepeatedToday)}");
         }
 
         private static List<Word> GetWords(List<KeyValuePair<string, string>> parseResult)
         {
-            return parseResult.Distinct().Select(pair => new Word
+            return parseResult.Select(pair => new Word
                 {
-                    Name = pair.Key,
-                    Translation = pair.Value
+                    name = pair.Key,
+                    translation = pair.Value
                 })
                 .ToList();
         }
@@ -223,7 +217,7 @@ namespace WordTrainingAssistant
             }
             string text = await File.ReadAllTextAsync(WordsPath);
             List<Word> words = JsonConvert.DeserializeObject<List<Word>>(text);
-            return (words ?? new List<Word>()).Distinct(Word.NameTranslationComparer).ToList();
+            return (words ?? new List<Word>()).ToList();
         }
 
         private static async Task SaveWords(List<Word> words)
@@ -234,7 +228,7 @@ namespace WordTrainingAssistant
 
         private static List<Word> GetTrainSet(int count, List<Word> words)
         {
-            List<Word> trainSet = words.Where(word => word.IsRepeatedToday == false).Take(count).ToList();
+            List<Word> trainSet = words.Where(word => word.isRepeatedToday == false).Take(count).ToList();
             if (trainSet.Count >= count)
             {
                 return trainSet;
@@ -262,11 +256,11 @@ namespace WordTrainingAssistant
             HttpClient client = new();
             foreach (Word word in words)
             {
-                progressBar.Next(word.Translation);
+                progressBar.Next(word.translation);
                 try
                 {
                     HttpResponseMessage response = await client
-                        .GetAsync($"https://dictionary.skyeng.ru/api/public/v1/words/search?search={word.Translation}");
+                        .GetAsync($"https://dictionary.skyeng.ru/api/public/v1/words/search?search={word.translation}");
 
                     if (response.IsSuccessStatusCode == false)
                     {
@@ -296,13 +290,13 @@ namespace WordTrainingAssistant
             List<SkyEngClass> list = skyEngClasses.Skip(1).ToList();
             List<Word> similarWords = list.Select(cl => new Word
                 {
-                    Name = cl.text,
-                    Translation = cl.meanings[0]
+                    name = cl.text,
+                    translation = cl.meanings[0]
                                       ?.translation?.text ??
-                                  word.Translation
+                                  word.translation
                 })
                 .ToList();
-            word.Synonyms = similarWords;
+            word.synonyms = similarWords;
         }
 
         private static List<Word> CheckAnswerAndPrintResult(List<Word> filteredObjects)
@@ -310,11 +304,11 @@ namespace WordTrainingAssistant
             List<Word> errors = new();
             foreach (Word word in filteredObjects)
             {
-                PrintDefaultMsg(word.Translation);
+                PrintDefaultMsg(word.translation);
                 string userInput = Console.ReadLine();
                 if (Core.CheckAnswer(userInput, word))
                 {
-                    word.DateTime = DateTime.Today;
+                    word.dateTime = DateTime.Today;
 
                     PrintSuccessMsg("SUCCESS");
                     PrintSynonyms(word);
@@ -324,7 +318,7 @@ namespace WordTrainingAssistant
                 {
                     errors.Add(word);
                     PrintErrorMsg("FAIL");
-                    PrintErrorMsg($"Right answer is: {word.Name}");
+                    PrintErrorMsg($"Right answer is: {word.name}");
                     PrintSynonyms(word);
 
                     Console.WriteLine("");
@@ -336,16 +330,16 @@ namespace WordTrainingAssistant
 
         private static void PrintSynonyms(Word word)
         {
-            if (word.Synonyms.Any() == false)
+            if (word.synonyms.Any() == false)
             {
                 return;
             }
 
             StringBuilder sb = new();
             sb.Append("Synonyms of this word: ");
-            foreach (Word synonym in word.Synonyms.Where(w => w.Name.Equals(word.Name) == false))
+            foreach (Word synonym in word.synonyms.Where(w => w.name.Equals(word.name) == false))
             {
-                sb.Append($"[{synonym.Name} - {synonym.Translation}], ");
+                sb.Append($"[{synonym.name} - {synonym.translation}], ");
             }
 
             PrintAdditionalInfo(sb.ToString().Substring(0, sb.ToString().Length - 2));

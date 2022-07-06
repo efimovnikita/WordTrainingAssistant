@@ -1,20 +1,31 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
-using AngleSharp;
-using AngleSharp.Dom;
+using Newtonsoft.Json;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Interactions;
 using WordTrainingAssistant.Shared.Models;
+using Cookie = OpenQA.Selenium.Cookie;
 
 namespace WordTrainingAssistant.Shared
 {
+    public static class QueueExtensions
+    {
+        public static IEnumerable<T> DequeueChunk<T>(this Queue<T> queue, int chunkSize) 
+        {
+            for (int i = 0; i < chunkSize && queue.Count > 0; i++)
+            {
+                yield return queue.Dequeue();
+            }
+        }
+    }
+    
     public static class Core
     {
         public static void Shuffle<T>(this IList<T> list)
@@ -41,7 +52,9 @@ namespace WordTrainingAssistant.Shared
                         "http://www.gstatic.com/generate_204",
                 };
 
+#pragma warning disable SYSLIB0014
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+#pragma warning restore SYSLIB0014
                 request.KeepAlive = false;
                 request.Timeout = timeoutMs;
                 using HttpWebResponse response = (HttpWebResponse)request.GetResponse();
@@ -55,38 +68,22 @@ namespace WordTrainingAssistant.Shared
 
         public static bool CheckAnswer(string userInput, Word word)
         {
-            bool equals = userInput == null || userInput.Equals(word.Name, StringComparison.InvariantCultureIgnoreCase);
+            bool equals = userInput == null || userInput.Equals(word.name, StringComparison.InvariantCultureIgnoreCase);
 
             if (equals)
             {
                 return true;
             }
 
-            if (word.Synonyms.Count == 0)
+            if (word.synonyms.Count == 0)
             {
                 return false;
             }
 
-            return word.Synonyms.Where(synonym => synonym.Name.Equals(userInput, StringComparison.InvariantCultureIgnoreCase))
+            return word.synonyms.Where(synonym => synonym.name.Equals(userInput, StringComparison.InvariantCultureIgnoreCase))
                 .ToList().Any();
         }
-
-        public static async Task<List<KeyValuePair<string, string>>> ParseFiles(FileSystemInfo dir,
-            FileSystemInfo externalDictionary)
-        {            
-            List<KeyValuePair<string, string>> words = new();
-
-            if (dir == null)
-            {
-                return words;
-            }
-
-            words = await ParseWebPage(dir.FullName);
-            words.AddRange(await ParseDictionary(externalDictionary));
-
-            return words;
-        }
-
+        
         private static async Task<KeyValuePair<string, string>[]> ParseDictionary(FileSystemInfo externalDictionary)
         {
             if (externalDictionary == null)
@@ -97,72 +94,20 @@ namespace WordTrainingAssistant.Shared
             string rawText = await File.ReadAllTextAsync(externalDictionary.FullName);
             return DictionaryParser.ParseDictionary(rawText);
         }
-
-        private static async Task<List<KeyValuePair<string, string>>> ParseWebPage(string dir)
+        
+        public static async Task<List<KeyValuePair<string, string>>> GetWordsFromSite(string login,
+            string password, string studentId, string path, FileSystemInfo externalDictionary)
         {
-            List<KeyValuePair<string, string>> words = new();
-
-            string[] files = Directory.GetFiles(dir);
-
-            foreach (string file in files)
-            {
-                string source = await File.ReadAllTextAsync(file);
-                words.AddRange(await GetWordsFromSource(source));
-            }
-
-            return words;
-        }
-
-        private static async Task<List<KeyValuePair<string, string>>> GetWordsFromSource(string source)
-        {
-            List<KeyValuePair<string, string>> words = new();
-            
-            IConfiguration config = Configuration.Default;
-            IBrowsingContext context = BrowsingContext.New(config);
-
-            IDocument document = await context.OpenAsync(req => req.Content(source));
-
-            IHtmlCollection<IElement> wordSets = document.QuerySelectorAll("div.wordset");
-
-            foreach (IElement wordSet in wordSets)
-            {
-                IHtmlCollection<IElement> liElements = wordSet.QuerySelectorAll("li");
-
-                words.AddRange(liElements
-                    .Select(GetWordAndTranslationFromLiElement).Where(item =>
-                        !new[] {item.Key, item.Value}.Any(String.IsNullOrWhiteSpace)));
-            }
-
-            return words;
-        }
-
-        private static KeyValuePair<string, string> GetWordAndTranslationFromLiElement(IElement li)
-        {
-            string name =
-                li.QuerySelectorAll("div.original > span.text").FirstOrDefault()?.TextContent
-                    .Trim().Replace('’', '\'') ?? "";
-            string translation =
-                li.QuerySelectorAll("div.translation").FirstOrDefault()?.TextContent.Trim() ?? "";
-
-            return new KeyValuePair<string, string>(name, translation);
-        }
-
-        public static async Task<List<KeyValuePair<string, string>>> GetWordsFromSite(string path, string login,
-            string password, FileSystemInfo externalDictionary)
-        {
-            List<string> sources = GetPageSources(path, login, password);
             List<KeyValuePair<string,string>> words = new();
-            foreach (string source in sources)
-            {
-                words.AddRange(await GetWordsFromSource(source));
-            }
+            words.AddRange(await GetWordsFromApi(login, password, studentId, path));
             
             words.AddRange(await ParseDictionary(externalDictionary));
 
             return words;
         }
-
-        private static List<string> GetPageSources(string path, string login, string password)
+        
+        private static async Task<List<KeyValuePair<string, string>>> GetWordsFromApi(string login, string password, string studentId,
+            string driverPath)
         {
             ChromeDriver driver = null;
             try
@@ -172,7 +117,7 @@ namespace WordTrainingAssistant.Shared
                 options.AddArgument("--window-size=1920,1080");
                 options.AddArgument("--log-level=3");
                 
-                ChromeDriverService service = ChromeDriverService.CreateDefaultService(path);
+                ChromeDriverService service = ChromeDriverService.CreateDefaultService(driverPath);
                 service.SuppressInitialDiagnosticInformation = true;
                 service.HideCommandPromptWindow = true;
                 
@@ -183,21 +128,21 @@ namespace WordTrainingAssistant.Shared
                 IWebElement link = driver.FindElement(By.CssSelector("[class='link link--primary js-phone-form-to-username-password']"), 5);
                 if (link == null)
                 {
-                    return new List<string>();
+                    return new List<KeyValuePair<string, string>>();
                 }
                 link.Click();
                 
                 IWebElement loginBox = driver.FindElement(By.CssSelector("[class='input js-username-password-form-input']"), 5);
                 if (loginBox == null)
                 {
-                    return new List<string>();
+                    return new List<KeyValuePair<string, string>>();
                 }
 
                 IWebElement passwordBox = driver.FindElement(
                     By.CssSelector("[class='input js-username-password-form-input js-username-password-form-password-input']"), 5);
                 if (password == null)
                 {
-                    return new List<string>();
+                    return new List<KeyValuePair<string, string>>();
                 }
 
                 loginBox.SendKeys(login);
@@ -206,44 +151,119 @@ namespace WordTrainingAssistant.Shared
                 IWebElement button = driver.FindElement(By.CssSelector("[class='button button--primary']"), 5);
                 if (button == null)
                 {
-                    return new List<string>();
+                    return new List<KeyValuePair<string, string>>();
                 }
-                button.Click();
+                new Actions(driver)
+                    .MoveToElement(button)
+                    .Click()
+                    .Pause(TimeSpan.FromMilliseconds(300))
+                    .Perform();
                 
-                ReadOnlyCollection<IWebElement> pages = driver.FindElements(By.CssSelector("[class='page']"), 10);
-                List<string> sources = new(){ driver.PageSource };
-                if (pages == null)
+                Cookie cookie = driver.Manage().Cookies.GetCookieNamed("token_global");
+
+                HttpClient httpClient = new();
+                SetsRoot wordSets = await GetWordSets(cookie, studentId, httpClient);
+                List<int> setsIds = wordSets.data.Select(datum => datum.id).ToList();
+
+                List<int> wordIds = new();
+                foreach (int setsId in setsIds)
                 {
-                    return sources;
+                    SetRoot setWords = await GetWordsFromSet(studentId, setsId, cookie, httpClient);
+                    List<int> meaningsIds = setWords.data.Select(datum => datum.meaningId).ToList();
+                    wordIds.AddRange(meaningsIds);
                 }
                 
-                for (int i = 0; i < pages.Count; i++)
-                {
-                    ReadOnlyCollection<IWebElement> paginationLinks = driver.FindElements(By.CssSelector("[class='page']"), 3);
-                    
-                    ClickWithDelay(driver, paginationLinks[i]);
-                    sources.Add(driver.PageSource);
-                }
-            
-                driver.Quit();
-                return sources;
+                List<MeaningRoot> meanings = new();
+                meanings.AddRange(await GetMeanings(wordIds, httpClient));
+                
+                List<KeyValuePair<string, string>> words = meanings.Select(meaning => new KeyValuePair<string, string>(meaning.text, meaning.translation.text)).ToList();
+                return words;
             }
             catch (Exception exception)
             {
                 Console.WriteLine(exception.Message);
                 driver?.Quit();
-                return new List<string>();
+                return new List<KeyValuePair<string, string>>();
             }
         }
 
-        private static void ClickWithDelay(ChromeDriver driver, IWebElement paginationLink)
+
+        private static async Task<List<MeaningRoot>> GetMeanings(List<int> wordIds, HttpClient httpClient)
         {
-            new Actions(driver)
-                .MoveToElement(paginationLink)
-                .Click()
-                .Pause(TimeSpan.FromMilliseconds(500))
-                .Perform();
+            Queue<int> queue = new(wordIds);
+            List<MeaningRoot> meanings = new ();
+
+            do
+            {
+                List<int> chunk = queue.DequeueChunk(10).ToList();
+                meanings.AddRange(await GetMeaningsForChunk(chunk, httpClient));
+            } while (queue.Count != 0);
+            
+            return meanings;
         }
 
+        private static async Task<List<MeaningRoot>> GetMeaningsForChunk(List<int> wordIds, HttpClient httpClient)
+        {
+            HttpRequestMessage request = new()
+            {
+                Method = HttpMethod.Get,
+                RequestUri =
+                    new Uri($"https://dictionary.skyeng.ru/api/for-services/v2/meanings?ids={String.Join(',', wordIds)}"),
+            };
+            using HttpResponseMessage response = await httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            string responseBody = await response.Content.ReadAsStringAsync();
+            List<MeaningRoot> meanings = JsonConvert.DeserializeObject<List<MeaningRoot>>(responseBody);
+            return meanings;
+        }
+
+        private static async Task<SetRoot> GetWordsFromSet(string studentId, int setsId, Cookie cookie, HttpClient httpClient)
+        {
+            HttpRequestMessage request = new()
+            {
+                Method = HttpMethod.Get,
+                RequestUri =
+                    new Uri(
+                        $"https://api-words.skyeng.ru/api/v1/wordsets/{setsId}/words.json?studentId={studentId}&wordsetId={setsId}&pageSize=500&page=1"),
+                Headers =
+                {
+                    {
+                        "authorization",
+                        $"Bearer {cookie.Value}"
+                    },
+                },
+            };
+            using HttpResponseMessage response = await httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            string responseBody = await response.Content.ReadAsStringAsync();
+
+            SetRoot setWords = JsonConvert.DeserializeObject<SetRoot>(responseBody);
+            return setWords;
+        }
+
+        private static async Task<SetsRoot> GetWordSets(Cookie cookie, string studentId, HttpClient client)
+        {
+            HttpRequestMessage request = new()
+            {
+                Method = HttpMethod.Get,
+                RequestUri =
+                    new Uri(
+                        $"https://api-words.skyeng.ru/api/for-vimbox/v1/wordsets.json?studentId={studentId}&pageSize=1000&page=1"),
+                Headers =
+                {
+                    {
+                        "authorization",
+                        $"Bearer {cookie.Value}"
+                    },
+                },
+            };
+
+            using HttpResponseMessage response = await client.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            string responseBody = await response.Content.ReadAsStringAsync();
+
+            SetsRoot wordSets = JsonConvert.DeserializeObject<SetsRoot>(responseBody);
+            return wordSets;
+        }
     }
 }
