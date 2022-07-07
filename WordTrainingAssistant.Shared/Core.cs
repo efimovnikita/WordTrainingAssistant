@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using OpenQA.Selenium;
@@ -66,23 +68,33 @@ namespace WordTrainingAssistant.Shared
             }
         }
 
-        public static bool CheckAnswer(string userInput, Word word)
+        public static async Task<bool> CheckAnswer(string userInput, Word word, bool audio)
         {
             bool equals = userInput == null || userInput.Equals(word.name, StringComparison.InvariantCultureIgnoreCase);
 
             if (equals)
             {
+                if (audio) await Pronounce(word.name);
                 return true;
             }
 
             if (word.synonyms.Count == 0)
             {
+                if (audio) await Pronounce(word.name);
                 return false;
             }
 
-            return word.synonyms.Where(synonym => synonym.name.Equals(userInput, 
-                    StringComparison.InvariantCultureIgnoreCase))
-                .ToList().Any();
+            Word synonym = word.synonyms
+                .FirstOrDefault(synonym => synonym.name.Equals(userInput, StringComparison.InvariantCultureIgnoreCase));
+
+            if (synonym is null)
+            {
+                if (audio) await Pronounce(word.name);
+                return false;
+            }
+
+            if (audio) await Pronounce(synonym.name);
+            return true;
         }
         
         private static async Task<KeyValuePair<string, string>[]> ParseDictionary(FileSystemInfo externalDictionary)
@@ -275,6 +287,80 @@ namespace WordTrainingAssistant.Shared
 
             SetsRoot wordSets = JsonConvert.DeserializeObject<SetsRoot>(responseBody);
             return wordSets;
+        }
+
+        public static async Task Pronounce(string word)
+        {
+            string file = await DownloadVoice(word);
+            if (String.IsNullOrEmpty(file))
+            {
+                return;
+            }
+
+            await Play(file);
+
+            File.Delete(file);
+        }
+
+        private static async Task Play(string mp3)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) == false)
+            {
+                return;
+            }
+
+            Process pulseAudioStart = new();
+            pulseAudioStart.StartInfo.RedirectStandardOutput = true;
+            pulseAudioStart.StartInfo.FileName = "pactl";
+            pulseAudioStart.StartInfo.Arguments = "info";
+            pulseAudioStart.Start();
+            await pulseAudioStart.WaitForExitAsync();
+            if (pulseAudioStart.ExitCode != 0)
+            {
+                throw new Exception($"Failed to initialize the PulseAudio daemon: {pulseAudioStart.ExitCode}");
+            }
+
+            Process mpvStart = Process.Start("mpv", $"--no-video --gapless-audio --volume=100.0 {mp3} --no-terminal");
+            if (mpvStart != null)
+            {
+                await mpvStart.WaitForExitAsync();
+                if (mpvStart.ExitCode != 0)
+                {
+                    throw new Exception($"Failed to start the player: {mpvStart.ExitCode}");
+                }
+            }
+        }
+
+        private static async Task<string> DownloadVoice(string word)
+        {
+            try
+            {
+                HttpClientHandler clientHandler = new()
+                {
+                    UseCookies = false,
+                };
+                HttpClient client = new(clientHandler);
+                HttpRequestMessage request = new()
+                {
+                    Method = HttpMethod.Get,
+                    RequestUri = new Uri($"https://vimbox-tts.skyeng.ru/api/v1/tts?text={word}&lang=en&voice=male_2"),
+                };
+                using HttpResponseMessage response = await client.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+                Stream body = await response.Content.ReadAsStreamAsync();
+            
+                body.Seek(0, SeekOrigin.Begin);
+
+                string path = Path.Combine(Path.GetTempPath(), "temp.mp3");
+                await using FileStream fs = new(path, FileMode.OpenOrCreate);
+                await body.CopyToAsync(fs);
+
+                return File.Exists(path) ? path : "";
+            }
+            catch
+            {
+                return "";
+            }
         }
     }
 }
