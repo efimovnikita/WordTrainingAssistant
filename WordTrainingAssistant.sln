@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WordTrainingAssistant.Share
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WordTrainingAssistant.Archiver", "WordTrainingAssistant.Archiver\WordTrainingAssistant.Archiver.csproj", "{D419D45B-E020-4C52-939F-E82AD2C8BB56}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WordTrainingAssistant.IdiomHunter", "WordTrainingAssistant.IdiomHunter\WordTrainingAssistant.IdiomHunter.csproj", "{2BA7EAA0-8920-4D7C-B43D-D377FEEA7CC6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{D419D45B-E020-4C52-939F-E82AD2C8BB56}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D419D45B-E020-4C52-939F-E82AD2C8BB56}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D419D45B-E020-4C52-939F-E82AD2C8BB56}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2BA7EAA0-8920-4D7C-B43D-D377FEEA7CC6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2BA7EAA0-8920-4D7C-B43D-D377FEEA7CC6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2BA7EAA0-8920-4D7C-B43D-D377FEEA7CC6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2BA7EAA0-8920-4D7C-B43D-D377FEEA7CC6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
