@@ -7,9 +7,11 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using AngleSharp.Dom;
+using AngleSharp.Html.Dom;
+using AngleSharp.Html.Parser;
 using Konsole;
 using Newtonsoft.Json;
-using WordTrainingAssistant.Models;
 using WordTrainingAssistant.Shared;
 using WordTrainingAssistant.Shared.Models;
 using IConsole = Konsole.IConsole;
@@ -179,7 +181,7 @@ namespace WordTrainingAssistant
 
             if (offline == false)
             {
-                await EnrichWithSynonyms(trainSet);
+                await EnrichWithSentencesAndSynonyms(trainSet);
             }
 
             List<Word> errors = await CheckAnswerAndPrintResult(trainSet, audio);
@@ -199,6 +201,57 @@ namespace WordTrainingAssistant
 
                 await CheckAnswerAndPrintResult(errors, audio);
             }
+        }
+
+        private static async Task EnrichWithSentencesAndSynonyms(List<Word> words)
+        {
+            if (!Core.CheckForInternetConnection())
+            {
+                return;
+            }
+
+            HttpClient client = new();
+            ProgressBar progressBar = new(_window, PbStyle.SingleLine, words.Count);
+
+            foreach (Word word in words)
+            {
+                progressBar.Next(word.translation);
+                await AddSentences(client, word);
+                await AddsSynonyms(client, word);
+            }
+        }
+
+        private static async Task AddsSynonyms(HttpClient client, Word word)
+        {
+            HttpResponseMessage response = await client
+                .GetAsync($"https://sentencestack.com/q/{word.name}");
+            if (response.IsSuccessStatusCode == false)
+            {
+                return;
+            }
+            string source = await response.Content.ReadAsStringAsync();
+            HtmlParser parser = new();
+            IHtmlDocument document = await parser.ParseDocumentAsync(source);
+            IHtmlCollection<IElement> elements = document.QuerySelectorAll("div.synonym");
+            List<string> synonyms = elements.Select(element => element.QuerySelector("a")?.Text()).Distinct().ToList();
+            word.synonyms = synonyms;
+        }
+
+        private static async Task AddSentences(HttpClient client, Word word)
+        {
+            HttpResponseMessage response = await client
+                .GetAsync($"https://sentencestack.com/q/{word.name}");
+            if (response.IsSuccessStatusCode == false)
+            {
+                return;
+            }
+            string source = await response.Content.ReadAsStringAsync();
+
+            HtmlParser parser = new();
+            IHtmlDocument document = await parser.ParseDocumentAsync(source);
+            IHtmlCollection<IElement> elements = document.QuerySelectorAll("div.sentence");
+            List<string> sentences = elements.Take(5).Select(element => $"\"{element.Text().Trim()}\"").ToList();
+            word.sentences = sentences;
         }
 
         private static void PrintPreviouslyRepeatedWordsCount(List<Word> words)
@@ -251,61 +304,7 @@ namespace WordTrainingAssistant
         {
             _window.WriteLine(ConsoleColor.White, $"Imported words: {words.Count}");
         }
-
-        private static async Task EnrichWithSynonyms(List<Word> words)
-        {
-            if (!Core.CheckForInternetConnection())
-            {
-                return;
-            }
-
-            ProgressBar progressBar = new(_window, PbStyle.SingleLine, words.Count);
-            HttpClient client = new();
-            foreach (Word word in words)
-            {
-                progressBar.Next(word.translation);
-                try
-                {
-                    HttpResponseMessage response = await client
-                        .GetAsync($"https://dictionary.skyeng.ru/api/public/v1/words/search?search={word.translation}");
-
-                    if (response.IsSuccessStatusCode == false)
-                    {
-                        continue;
-                    }
-
-                    string stringAsync = await response.Content.ReadAsStringAsync();
-                    SkyEngClass[] skyEngClasses = JsonConvert.DeserializeObject<SkyEngClass[]>(stringAsync);
-                    GetAnotherWords(skyEngClasses, word);
-                }
-                catch
-                {
-                    // ignored
-                }
-            }
-
-            Console.WriteLine();
-        }
-
-        private static void GetAnotherWords(SkyEngClass[] skyEngClasses, Word word)
-        {
-            if (skyEngClasses == null)
-            {
-                return;
-            }
-
-            List<SkyEngClass> list = skyEngClasses.Skip(1).ToList();
-            List<Word> similarWords = list.Select(cl => new Word
-                {
-                    name = cl.text,
-                    translation = cl.meanings[0]
-                                      ?.translation?.text ??
-                                  word.translation
-                })
-                .ToList();
-            word.synonyms = similarWords;
-        }
-
+        
         private static async Task<List<Word>> CheckAnswerAndPrintResult(List<Word> filteredObjects, bool audio)
         {
             List<Word> errors = new();
@@ -318,7 +317,8 @@ namespace WordTrainingAssistant
                     word.dateTime = DateTime.Today;
 
                     PrintSuccessMsg("SUCCESS");
-                    PrintSynonyms(word);
+                    PrintSynonyms2(word);
+                    PrintSentences(word);
                     Console.WriteLine("");
                 }
                 else
@@ -326,7 +326,8 @@ namespace WordTrainingAssistant
                     errors.Add(word);
                     PrintErrorMsg("FAIL");
                     PrintErrorMsg($"Right answer is: {word.name}");
-                    PrintSynonyms(word);
+                    PrintSynonyms2(word);
+                    PrintSentences(word);
 
                     Console.WriteLine("");
                 }
@@ -335,23 +336,36 @@ namespace WordTrainingAssistant
             return errors;
         }
 
-        private static void PrintSynonyms(Word word)
+        private static void PrintSentences(Word word)
+        {
+            if (word.sentences.Any() == false)
+            {
+                return;
+            }
+
+            PrintAdditionalInfo($"Example sentences containing {word.name.ToUpperInvariant()}:");
+            foreach (string sentence in word.sentences)
+            {
+                PrintAdditionalInfo(sentence);
+            }
+        }
+        
+        private static void PrintSynonyms2(Word word)
         {
             if (word.synonyms.Any() == false)
             {
                 return;
             }
 
+            PrintAdditionalInfo("Synonyms:");
             StringBuilder sb = new();
-            sb.Append("Synonyms of this word: ");
-            foreach (Word synonym in word.synonyms.Where(w => w.name.Equals(word.name) == false))
+            foreach (string synonym in word.synonyms)
             {
-                sb.Append($"[{synonym.name} - {synonym.translation}], ");
+                sb.Append($"{synonym}, ");
             }
-
-            PrintAdditionalInfo(sb.ToString().Substring(0, sb.ToString().Length - 2));
+            PrintAdditionalInfo(sb.ToString().Trim().TrimEnd(','));
         }
-
+        
         private static void PrintAdditionalInfo(string message)
         {
             Console.ForegroundColor = ConsoleColor.Gray;

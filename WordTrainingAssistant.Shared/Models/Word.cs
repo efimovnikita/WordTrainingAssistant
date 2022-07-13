@@ -7,7 +7,10 @@ namespace WordTrainingAssistant.Shared.Models
     {
         public string name { get; set; } = "";
         public string translation { get; set; } = "";
-        public List<Word> synonyms { get; set; } = new();
+
+        public List<string> sentences { get; set; } = new();
+
+        public List<string> synonyms { get; set; } = new();
 
         public DateTime dateTime { get; set; }
 

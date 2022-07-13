@@ -84,8 +84,8 @@ namespace WordTrainingAssistant.Shared
                 return false;
             }
 
-            Word synonym = word.synonyms
-                .FirstOrDefault(synonym => synonym.name.Equals(userInput, StringComparison.InvariantCultureIgnoreCase));
+            string synonym = word.synonyms
+                .FirstOrDefault(synonym => synonym.Equals(userInput, StringComparison.InvariantCultureIgnoreCase));
 
             if (synonym is null)
             {
@@ -93,7 +93,7 @@ namespace WordTrainingAssistant.Shared
                 return false;
             }
 
-            if (audio) await Pronounce(synonym.name);
+            if (audio) await Pronounce(synonym);
             return true;
         }
         
